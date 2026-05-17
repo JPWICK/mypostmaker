@@ -68,7 +68,7 @@ async function fetchNews() {
 
     const q = qMap[cat] || 'France';
     // Change the old URL line to this:
-const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(q)}&lang=fr&max=9&apikey=${gk()}`;
+const url = `https://gnews.io/api/v4/search?q=Google&lang=en&max=5&apikey=${gk()}`;
 
     const res = await fetch(url);
     if (!res.ok) {
