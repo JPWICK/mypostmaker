@@ -58,15 +58,18 @@ async function fetchNews() {
   hideErr();
   try {
     const qMap = {
-      politics: 'France politique gouvernement',
-      general: 'France actualité',
-      business: 'France économie',
-      entertainment: 'France culture société',
-      health: 'France santé',
-      sports: 'France sport'
-    };
+  politics: 'France politique', // Simplified from 'France politique gouvernement'
+  general: 'France',            // Simplified from 'France actualité'
+  business: 'France économie',
+  entertainment: 'France culture',
+  health: 'France santé',
+  sports: 'France sport'
+};
+
     const q = qMap[cat] || 'France';
-    const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(q)}&lang=fr&country=fr&max=9&sortby=publishedAt&apikey=${gk()}`;
+    // Change the old URL line to this:
+const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(q)}&lang=fr&max=9&apikey=${gk()}`;
+
     const res = await fetch(url);
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
