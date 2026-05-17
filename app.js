@@ -387,3 +387,130 @@ function toast(m) {
 document.addEventListener('keydown', e => { 
   if (e.key === 'Escape') closeModal(); 
 });
+
+// ── FETCH NEWS (GNews API Error Checking) ──
+async function fetchNews() {
+  if (!gk()) { 
+    showErr('❌ GNews Error: Please enter your GNews API key first.'); 
+    if (!panelOpen) togglePanel(); 
+    return; 
+  }
+  
+  const btn = document.getElementById('fetchBtn');
+  btn.disabled = true; btn.classList.add('loading');
+  hideErr();
+  
+  try {
+    const qMap = {
+      politics: 'France politique gouvernement',
+      general: 'France actualité',
+      business: 'France économie',
+      entertainment: 'France culture société',
+      health: 'France santé',
+      sports: 'France sport'
+    };
+    const q = qMap[cat] || 'France';
+    const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(q)}&lang=fr&country=fr&max=9&sortby=publishedAt&apikey=${gk()}`;
+    
+    const res = await fetch(url);
+    
+    // Check specific HTTP server statuses from GNews
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      if (res.status === 401 || res.status === 403) {
+        throw new Error(`Invalid GNews API Key. (Status ${res.status})`);
+      }
+      throw new Error(e.errors?.[0] || `GNews Server returned status ${res.status}`);
+    }
+    
+    const data = await res.json();
+    if (!data.articles?.length) {
+      throw new Error('GNews connected successfully, but returned 0 articles for this category.');
+    }
+    
+    articles = data.articles;
+    renderNews(articles);
+    toast('GNews loaded successfully!');
+    
+  } catch (e) {
+    // Isolated GNews error printout
+    showErr(`📡 GNews API Error: ${e.message}`);
+  } finally {
+    btn.disabled = false; btn.classList.remove('loading');
+  }
+}
+
+// ── GENERATE VIRAL PACK (Gemini API Error Checking) ──
+async function generate(idx) {
+  if (!gm()) { 
+    showErr('❌ Gemini Error: Please enter your Gemini API key first.'); 
+    if (!panelOpen) togglePanel(); 
+    return; 
+  }
+  
+  current = articles[idx];
+  const btn = document.getElementById(`gb${idx}`);
+  if (btn) { 
+    btn.disabled = true; 
+    btn.classList.add('loading'); 
+    btn.querySelector('.gb-label').textContent = 'Generating...'; 
+  }
+  hideErr();
+  
+  try {
+    lastResult = await callGemini(current, style);
+    fillModal(current, lastResult);
+    openModal();
+  } catch (e) {
+    // Isolated Gemini error printout
+    showErr(`🧠 Gemini API Error: ${e.message}`);
+  } finally {
+    if (btn) { 
+      btn.disabled = false; 
+      btn.classList.remove('loading'); 
+      btn.querySelector('.gb-label').textContent = 'Generate Viral Prompt'; 
+    }
+  }
+}
+
+async function callGemini(article, st) {
+  const imgStyle = styleInstructions[st];
+  const prompt = `You are an expert viral content creator for a French political news Facebook page...`; // Prompt stays same
+
+  let res;
+  try {
+    res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${gm()}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.88, maxOutputTokens: 1100 }
+        })
+      }
+    );
+  } catch (networkError) {
+    throw new Error(`Failed to reach Google Servers. Check internet or adblockers. (${networkError.message})`);
+  }
+
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    if (res.status === 400) {
+      throw new Error(`Bad Request (400). Ensure your API key format is accurate.`);
+    }
+    if (res.status === 403) {
+      throw new Error(`Invalid Gemini API Key or restricted permissions. (403)`);
+    }
+    if (res.status === 429) {
+      throw new Error(`Rate limit exceeded. Too many requests to Gemini. (429)`);
+    }
+    throw new Error(e.error?.message || `Google API Error Status ${res.status}`);
+  }
+  
+  const data = await res.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error('Response received from Gemini, but text payload was empty.');
+  return parse(text);
+}
+
