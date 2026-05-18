@@ -138,120 +138,328 @@ function renderNews(arts) {
 }
 
 // ── GEMINI ──
-const styleInstructions = {
-  poll: `IMAGE STYLE: Cinematic photorealistic scene. Real French locations — Paris streets, Champs-Élysées, Palais Bourbon, public squares with crowds. Dramatic golden hour or moody overcast lighting. French flags visible. Diverse crowd shot from behind OR establishing wide shot. Dark vignette at bottom for text overlay. NO TEXT in the image. Ultra detailed, 8K quality, press photography style.`,
-  shock: `IMAGE STYLE: High-impact dramatic single image. Dark moody atmosphere — stormy sky over Paris landmarks, empty Assemblée Nationale at night, tense protest crowd at dusk. French tricolor elements. Cinematic wide shot. Powerful chiaroscuro lighting. NO TEXT in the image. Ultra detailed, 8K, cinematic.`,
-  split: `IMAGE STYLE: TWO contrasting scenes split diagonally as if torn apart. Left side: warm golden tones, traditional French family/prosperity, Eiffel Tower background. Right side: cold gray tones, economic tension, urban struggle. French tricolor flag dramatically split down the center as the dividing element. NO TEXT in the image. Photorealistic, 8K.`,
-  portrait: `IMAGE STYLE: Dramatic political portrait. A stern older male or young female politician type (NO real faces — fictional character). 3/4 angle close-up. Dark dramatic background with blurred parliament or protest scene behind. Intense thinking expression. Cinematic rim lighting. Dark area at bottom for text. NO TEXT in the image. Photorealistic, 8K.`
-};
+// ================================================================
+//  COMPLETE DROP-IN REPLACEMENT FOR YOUR FRANCE NEWS PAGE
+//  Paste ALL of this inside your <script> tag, replacing:
+//    - styleInstructions
+//    - callGemini()
+//    - parse()
+//    - fillModal()
+// ================================================================
 
-async function generate(idx) {
-  if (!gm()) { showErr('Please enter your Gemini API key first.'); if (!panelOpen) togglePanel(); return; }
-  current = articles[idx];
-  const btn = document.getElementById(`gb${idx}`);
-  if (btn) { btn.disabled = true; btn.classList.add('loading'); btn.querySelector('.gb-label').textContent = 'Generating...'; }
-  hideErr();
-  try {
-    lastResult = await callGemini(current, style);
-    fillModal(current, lastResult);
-    openModal();
-  } catch (e) {
-    showErr('Gemini error: ' + e.message);
-  } finally {
-    if (btn) { btn.disabled = false; btn.classList.remove('loading'); btn.querySelector('.gb-label').textContent = 'Generate Viral Prompt'; }
+// ── STEP 1: STYLE COMPOSITION RULES ─────────────────────────────
+const styleInstructions = {
+
+poll: `
+COMPOSITION — “POLL DEBATE” STYLE (your main viral style):
+
+- Portrait 4:5 ratio
+- TOP 55%: Main dramatic scene. Politician figure large on LEFT foreground (waist up), real crisis scene on RIGHT background
+- BOTTOM 45%: Must fade to solid near-black — empty zone for text/poll graphics overlay
+- Politician: shown from waist up, slightly left of center, intense or contemplative expression, looking slightly right
+- Background RIGHT: the actual real-world scene from the news (protest, parliament, housing, border, street)
+- Lighting: dramatic cinematic rim light on figure, moody overcast or golden hour background
+- Color grade: dark, high contrast, slightly desaturated, French political tones (deep blue/red)`,
+  
+  shock: `
+  COMPOSITION — “SHOCK & IMPACT” STYLE:
+- Full frame dramatic wide establishing shot
+- BOTTOM 40% fades to solid dark for text overlay
+- The SCENE is the subject — no single dominant person
+- Could be: stormy sky over Paris, massive protest crowd, empty Palais Bourbon at night
+- Color grade: dark, ominous, high contrast, cold tones`,
+  
+  split: `
+  COMPOSITION — “SPLIT COMPARISON” STYLE:
+- Frame split diagonally as if physically torn
+- LEFT HALF: warm golden tones — prosperity, traditional France, café, family, Eiffel Tower
+- RIGHT HALF: cold gray/blue — poverty, urban tension, crowded HLM buildings, grey skies
+- French tricolor flag tears dramatically through the diagonal split center
+- BOTTOM 30%: solid dark gradient for text overlay`,
+  
+  portrait: `
+  COMPOSITION — “POLITICAL PORTRAIT” STYLE:
+- Tight 3/4 angle portrait filling LEFT 60% of frame from chest up
+- Subject looking slightly off-camera, intense expression
+- RIGHT side: blurred parliament, protest, or relevant political background
+- BOTTOM 40%: dark gradient fading to black for text overlay
+- Dramatic side rim lighting, dark moody background`
+  };
+
+// ── STEP 2: FETCH FULL ARTICLE TEXT ─────────────────────────────
+// Uses a CORS proxy to read the full article from its URL
+// This gives Gemini MUCH more context: real names, facts, numbers, quotes
+
+async function fetchFullArticle(url) {
+if (!url) return null;
+
+// Try AllOrigins proxy first (free, no key needed)
+const proxies = [
+`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+`https://corsproxy.io/?${encodeURIComponent(url)}`
+];
+
+for (const proxyUrl of proxies) {
+try {
+const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(6000) });
+if (!res.ok) continue;
+
+```
+  const data = await res.json();
+  const html = data.contents || data;
+  if (typeof html !== 'string') continue;
+
+  // Strip HTML tags and extract readable text
+  const text = html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<nav[\s\S]*?<\/nav>/gi, '')
+    .replace(/<header[\s\S]*?<\/header>/gi, '')
+    .replace(/<footer[\s\S]*?<\/footer>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s{3,}/g, '\n')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .trim();
+
+  // Return first 3000 chars — enough for Gemini context, not too long
+  if (text.length > 200) {
+    return text.slice(0, 3000);
   }
+} catch (e) {
+  continue; // try next proxy
+}
+```
+
+}
+return null; // both proxies failed — fall back to title+description only
 }
 
+// ── STEP 3: MAIN GEMINI CALL ─────────────────────────────────────
 async function callGemini(article, st) {
-  const imgStyle = styleInstructions[st];
-  
-  // THE NEW DEEP ANALYSIS PROMPT
-  const prompt = `You are an expert viral content creator for a French political news Facebook page. The page posts provocative debate images with NON👍/OUI❤️ polls. Your content must feel urgent, emotional, and shareable.
+const imgStyle = styleInstructions[st] || styleInstructions.poll;
 
-Analyze this specific news article deeply for:
-1. PEOPLE: Who are the main individuals involved? (e.g., protestors, police officers, specific looking French politicians, workers, or crowds). Describe their clothing, actions, and facial expressions (tense, angry, celebrating).
-2. PLACE: Where is this taking place? (e.g., specific streets in Paris, public plazas, inside a French government building, industrial zones). Describe the environmental details, atmosphere, weather, and lighting.
-3. MOOD: What is the primary emotional weight of the story? (e.g., financial strain, civil unrest, victory, cultural pride).
+// — Fetch full article text for richer context —
+let fullText = null;
+try {
+fullText = await fetchFullArticle(article.url);
+} catch(e) {
+fullText = null;
+}
 
-Based on these details, you must synthesize a powerful post matching this style framework:
+// Build article context block — use full text if available
+const articleContext = fullText
+? ` ARTICLE TITLE: ${article.title} SOURCE: ${article.source?.name || 'French press'} PUBLISHED: ${article.publishedAt || 'Recent'} FULL ARTICLE TEXT (use this for all details — names, facts, numbers, quotes): """ ${fullText} """`.trim()
+: ` ARTICLE TITLE: ${article.title} SOURCE: ${article.source?.name || 'French press'} PUBLISHED: ${article.publishedAt || 'Recent'} DESCRIPTION: ${article.description || 'No description available'} NOTE: Only title and description available. Extract maximum detail from these.`.trim();
+
+const masterPrompt = `
+You are the lead visual content strategist for a viral French political Facebook page with 500,000+ followers.
+Your posts use dramatic AI-generated images with bold French text overlays and NON👍/OUI❤️ polls.
+Every post must feel urgent, emotionally charged, and debate-worthy.
+
+━━━ THE NEWS ARTICLE ━━━
+${articleContext}
+
+━━━ YOUR TASK ━━━
+Read the article carefully and extract:
+• POLITICIAN NAMES: Full names and roles of every political figure mentioned
+• KEY FACTS: Specific numbers, dates, statistics, policy names, locations
+• CORE CONFLICT: What is the central controversy or debate?
+• EMOTIONAL ANGLE: What will make French citizens angry, worried, or passionate?
+• VISUAL SCENE: What real place or situation best represents this news visually?
+
+━━━ IMAGE COMPOSITION RULES ━━━
 ${imgStyle}
 
-NEWS ARTICLE TO ANALYZE:
-Title: ${article.title}
-Source: ${article.source?.name || 'French press'}
-Description: ${article.description || 'N/A'}
+━━━ IMAGE PROMPT RULES (follow ALL of these) ━━━
 
-Generate content in this EXACT format — no extra text, no markdown:
+1. REAL POLITICIAN RESEMBLANCE: If article names a specific politician, describe a figure that STRONGLY RESEMBLES them:
+- Macron: slim man, early 40s, brown hair neatly combed, clean-shaven, sharp dark navy suit, confident posture
+- Le Pen: woman, mid-50s, straight blonde hair to shoulders, dark blazer, firm expression
+- Mélenchon: older heavy-set man, late 60s, grey-white hair, round face, glasses, dark coat, defiant expression
+- Bardella: young man, late 20s, dark slick hair, clean-cut, dark suit, intense gaze
+- Wauquiez: man, late 40s, brown hair, athletic build, serious expression, dark suit
+- Barnier: tall older man, 70s, silver grey hair, distinguished look, formal suit
+- For any OTHER politician: describe their actual known appearance from the article context
+- If NO politician named: use a generic “French political figure” description
+1. BACKGROUND SCENE: Show the EXACT real-world situation from the news:
+- Immigration story → French border control, suburban banlieue at night, overcrowded waiting area
+- Economy/budget → Empty factory, struggling shop fronts, busy stock exchange, government budget documents
+- Housing → Crumbling HLM building, squat occupation, homeless camp under Paris bridge
+- Crime/security → Dark Paris street, French police line, riot gear, flashing lights
+- Elections → Polling station, campaign poster walls, packed political rally
+- Health/social → Hospital corridor, social services office queue, pharmacy
+- Environment → Flooded French farmland, wildfire in Provence, pollution over city
+1. FRENCH IDENTITY ELEMENTS: Always include at least ONE:
+   French tricolor flag, Palais Bourbon exterior, Arc de Triomphe, Marianne statue, French police uniform, Haussmann-style buildings, Seine river
+1. TEXT SPACE: State clearly: “the lower 45% of the image fades smoothly to solid near-black (#0a0a0a) — this zone is completely empty of scene detail, reserved for graphic text overlays”
+1. TECHNICAL TAG: End with exactly: shot on Canon EOS R5, 35mm lens, f/2.8, ISO 800, photojournalism style, dramatic rim lighting, ultra-sharp focus on subject, 8K resolution –ar 4:5 –style raw –q 2
 
-IMAGE_PROMPT: [Write a highly detailed 4-6 sentence English image generation prompt for an AI like Midjourney or DALL-E 3. It must paint a cinematic, photojournalistic scene explicitly featuring the real PEOPLE, PLACES, and MOOD found in the news text above. Specify their realistic actions, expressions, the weather, and realistic environmental lighting. End with: wide angle photo, shot on 35mm lens, f/2.8, raw press photography style, cinematic lighting, dramatic composition, highly detailed, 8k --ar 4:5]
+━━━ OUTPUT FORMAT ━━━
+Respond with ONLY these fields in order. No markdown. No extra text. No field explanations.
 
-TITRE: [Main French debate question or statement based on the article conflict, ALL CAPS, max 10 words, provocative and emotional]
+IMAGE_PROMPT:
+[5-7 sentence English image prompt following ALL 5 rules above. Sentence 1: the political figure resemblance. Sentence 2: their exact pose/expression/clothing. Sentence 3: the background scene tied to the news. Sentence 4: French identity element. Sentence 5: lighting and mood. Sentence 6: text space instruction. Sentence 7: technical tag.]
 
-HIGHLIGHT_WORD: [ONE single word from the TITRE to highlight in RED color — the most emotionally charged word]
+TITRE:
+[Main French provocative debate question or statement. ALL CAPS. Max 10 words. References the actual news conflict. Emotionally charged.]
 
-SOUS_TITRE: [Short French subtitle, max 10 words, adds context — or write NONE if not needed]
+HIGHLIGHT_PHRASE:
+[The 2-5 most shocking words from TITRE. These will get a yellow or red brush stroke behind them. Must be an exact substring of TITRE.]
 
-POLL_QUESTION: [The debate question for the poll card, French, ALL CAPS, ends with " ?", max 12 words, must create a clear YES/NO debate]
+SOUS_TITRE:
+[One specific French fact or stat from the article. Max 10 words. Examples: “3 milliards d’euros en jeu” or “500 000 familles concernées”. If no specific fact available write: NONE]
 
-FACEBOOK_CAPTION: [Full French Facebook caption. 4-5 sentences. Open with an emotional hook directly referencing the news facts. Create urgency or outrage. Ask followers to vote NON👍 or OUI❤️. End with 4-5 hashtags: #France #Politique #Débat #Actualité and one specific topic tag based on the news]`;
+POLL_QUESTION:
+[The binary debate question. French. ALL CAPS. Ends with “ ?”. Max 12 words. Clear YES or NO position. Based on the actual news controversy.]
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gm()}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.85, maxOutputTokens: 1100 }
-      })
-    }
-  );
-  if (!res.ok) {
-    const e = await res.json().catch(() => ({}));
-    throw new Error(e.error?.message || `Gemini API error ${res.status}`);
-  }
-  const data = await res.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error('Empty response from Gemini. Try again.');
-  return parse(text);
+NON_LABEL:
+[What voting NON👍 represents in this specific poll. 3-5 French words. Specific to the news. Example: “La priorité aux Français” or “Non aux coupes budgétaires”]
+
+OUI_LABEL:
+[What voting OUI❤️ represents in this specific poll. 3-5 French words. Specific to the news. Example: “Ouvrir les frontières” or “Accepter ces réformes”]
+
+FACEBOOK_CAPTION:
+[Full French Facebook post in this exact structure:
+Sentence 1 — HOOK: One shocking/urgent sentence referencing the politician by name and the specific news event.
+Sentence 2-3 — FACTS: The key facts, numbers, names, dates directly from the article. Be specific.
+Sentence 4 — QUESTION: A direct provocative question to followers about this issue.
+Sentence 5 — CALL TO ACTION: “👉 Donnez votre avis : votez 👍 NON ou ❤️ OUI en commentaire !”
+Hashtags: #France #Politique #Débat #Actualité + 2 specific tags from the news topic]
+
+IMAGE_NEGATIVE:
+[5-8 comma-separated things to EXCLUDE from the image. Be specific. Example: “no smiling faces, no text or letters in scene, no cartoon style, no bright cheerful colors, no American settings, no modern minimalist aesthetic”]
+`.trim();
+
+const res = await fetch(
+`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${gm()}`,
+{
+method: ‘POST’,
+headers: { ‘Content-Type’: ‘application/json’ },
+body: JSON.stringify({
+contents: [{ parts: [{ text: masterPrompt }] }],
+generationConfig: {
+temperature: 0.82,
+maxOutputTokens: 1600,
+topK: 40,
+topP: 0.95
+}
+})
+}
+);
+
+if (!res.ok) {
+const e = await res.json().catch(() => ({}));
+throw new Error(e.error?.message || `Gemini API error ${res.status} — check your API key`);
 }
 
-function parse(text) {
-  const get = (key) => {
-    const i = text.indexOf(key + ':');
-    if (i === -1) return '';
-    return text.slice(i + key.length + 1).split(/\n[A-Z_]+:/)[0].trim();
-  };
-  const imagePrompt = get('IMAGE_PROMPT');
-  const titre = get('TITRE');
-  const highlight = get('HIGHLIGHT_WORD');
-  const sousTitre = get('SOUS_TITRE');
-  const pollQ = get('POLL_QUESTION');
-  const caption = get('FACEBOOK_CAPTION');
+const data = await res.json();
+const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+if (!rawText) throw new Error(‘Gemini returned empty response. Please try again.’);
 
-  const frText =
-`MAIN TITLE (bold white, ALL CAPS):
+return parse(rawText);
+}
+
+// ── STEP 4: ROBUST PARSER ────────────────────────────────────────
+function parse(text) {
+
+function get(fieldName) {
+// Handles “FIELD:” or “**FIELD:**” or “FIELD :” variations Gemini sometimes outputs
+const pattern = new RegExp(
+‘(?:^|\n)\*{0,2}’ + fieldName + ’\*{0,2}\s*:\s*([\s\S]*?)(?=\n\*{0,2}[A-Z_]{3,}\*{0,2}\s*:|$)’,
+‘i’
+);
+const m = text.match(pattern);
+return m ? m[1].trim() : ‘’;
+}
+
+const imagePrompt     = get(‘IMAGE_PROMPT’);
+const titre           = get(‘TITRE’);
+const highlightPhrase = get(‘HIGHLIGHT_PHRASE’);
+const sousTitre       = get(‘SOUS_TITRE’);
+const pollQuestion    = get(‘POLL_QUESTION’);
+const nonLabel        = get(‘NON_LABEL’);
+const ouiLabel        = get(‘OUI_LABEL’);
+const caption         = get(‘FACEBOOK_CAPTION’);
+const negative        = get(‘IMAGE_NEGATIVE’);
+
+// Combine image prompt + negative prompt for easy copy-paste
+const fullImagePrompt = negative
+? `${imagePrompt}\n\nNEGATIVE PROMPT: ${negative}`
+: imagePrompt;
+
+// French text overlay card — formatted for the designer
+const frText = `
+MAIN TITLE — bold white ALL CAPS large font:
 ${titre}
 
-WORD TO HIGHLIGHT IN RED:
-${highlight}
+HIGHLIGHT WITH YELLOW/RED BRUSH STROKE:
+“${highlightPhrase}”
 
-SUBTITLE (smaller white text):
-${sousTitre !== 'NONE' ? sousTitre : '— none —'}
+SUBTITLE — smaller white text below title:
+${(sousTitre && sousTitre !== ‘NONE’) ? sousTitre : ‘(no subtitle)’}
 
-POLL FORMAT AT BOTTOM:
-NON 👍  (blue)   |   OUI ❤️  (red)`;
+━━━ POLL SECTION — bottom of image ━━━
+Poll question:
+${pollQuestion}
 
-  return { imagePrompt, frText, titre, highlight, sousTitre, pollQ, caption };
+LEFT SIDE — NON 👍 (blue):
+${nonLabel || ‘NON’}
+
+RIGHT SIDE — OUI ❤️ (red):
+${ouiLabel || ‘OUI’}
+`.trim();
+
+return {
+imagePrompt: fullImagePrompt,
+frText,
+titre,
+highlightPhrase,
+sousTitre,
+pollQuestion,
+nonLabel,
+ouiLabel,
+caption,
+negative
+};
 }
 
-
-// ── MODAL ──
+// ── STEP 5: UPDATED fillModal() ──────────────────────────────────
 function fillModal(article, r) {
-  document.getElementById('modalRef').textContent = article.title;
-  document.getElementById('pImage').textContent = r.imagePrompt;
-  document.getElementById('pText').textContent = r.frText;
-  document.getElementById('pCaption').textContent = r.caption;
+// Article reference
+document.getElementById(‘modalRef’).textContent = article.title;
+
+// Tab 0 — Image prompt
+document.getElementById(‘pImage’).textContent = r.imagePrompt;
+
+// Tab 1 — French text overlay
+document.getElementById(‘pText’).textContent = r.frText;
+
+// Tab 2 — Poll preview with highlighted phrase
+let qHtml = r.pollQuestion || r.titre || ‘’;
+if (r.highlightPhrase && qHtml) {
+const escaped = r.highlightPhrase.replace(/[.*+?^${}()|[]\]/g, ‘\$&’);
+const re = new RegExp(’(’ + escaped + ‘)’, ‘i’);
+qHtml = qHtml.replace(re, ‘<span class="hl">$1</span>’);
+}
+document.getElementById(‘pollQ’).innerHTML = qHtml;
+
+// Update NON/OUI labels with news-specific text
+const nonEl = document.querySelector(’.poll-opt.non .poll-label’);
+const ouiEl = document.querySelector(’.poll-opt.oui .poll-label’);
+if (nonEl) nonEl.innerHTML = `NON<br><small style="font-size:10px;font-weight:400;opacity:0.8">${r.nonLabel || ''}</small>`;
+if (ouiEl) ouiEl.innerHTML = `OUI<br><small style="font-size:10px;font-weight:400;opacity:0.8">${r.ouiLabel || ''}</small>`;
+
+// Tab 3 — Facebook caption
+document.getElementById(‘pCaption’).textContent = r.caption;
+
+// Always start on tab 0
+switchTab(0);
+}
+
 
   // Poll preview
   let qHtml = r.pollQ || r.titre || '';
