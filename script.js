@@ -460,32 +460,6 @@ document.getElementById(‘pCaption’).textContent = r.caption;
 switchTab(0);
 }
 
-
-  // Poll preview
-  let qHtml = r.pollQ || r.titre || '';
-  if (r.highlight && qHtml) {
-    const re = new RegExp('(' + r.highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'i');
-    qHtml = qHtml.replace(re, '<span class="hl">$1</span>');
-  }
-  document.getElementById('pollQ').innerHTML = qHtml;
-  switchTab(0);
-}
-
-function openModal() {
-  document.getElementById('modalOverlay').classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-function closeModal() {
-  document.getElementById('modalOverlay').classList.remove('open');
-  document.body.style.overflow = '';
-}
-function bgClose(e) { if (e.target === document.getElementById('modalOverlay')) closeModal(); }
-
-function switchTab(n) {
-  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', i === n));
-  document.querySelectorAll('.tab-panel').forEach((p, i) => p.classList.toggle('active', i === n));
-}
-
 async function regenerate() {
   if (!gm() || !current) return;
   const btn = document.getElementById('regenBtn');
