@@ -67,10 +67,17 @@ async function fetchNews() {
 };
 
     const q = qMap[cat] || 'France';
-    // Change the old URL line to this:
-const url = `https://gnews.io/api/v4/search?q=Google&lang=en&max=5&apikey=${gk()}`;
-
+    
+    // 1. Your original target URL
+    const targetUrl = `https://gnews.io/api/v4/search?q=${encodeURIComponent(q)}&lang=fr&max=9&apikey=${gk()}`;
+    
+    // 2. Wrap it with a public CORS proxy to bypass the browser block
+    const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+    
+    console.log("Fetching via CORS proxy:", url);
+    
     const res = await fetch(url);
+
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
       throw new Error(e.errors?.[0] || `GNews API error ${res.status} — check your key`);
