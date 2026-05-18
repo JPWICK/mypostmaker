@@ -91,6 +91,7 @@ async function fetchNews() {
 }
 
 
+
 function ago(d) {
   const s = (Date.now() - new Date(d)) / 1000;
   if (s < 60) return 'Just now';
@@ -194,6 +195,7 @@ const res = await fetch(
     })
   }
 );
+
 
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
