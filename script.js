@@ -58,36 +58,33 @@ async function fetchNews() {
   hideErr();
   try {
     const qMap = {
-      politics: 'politique',
-      general: 'actualité',
-      business: 'économie',
-      entertainment: 'culture',
-      health: 'santé',
-      sports: 'sport'
+      politics: 'France politique',
+      general: 'France actualité',
+      business: 'France économie',
+      entertainment: 'France culture',
+      health: 'France santé',
+      sports: 'France sport'
     };
-    const q = qMap[cat] || 'actualité';
+    const q = qMap[cat] || 'France';
     
-    // Direct stable HTTPS URL configuration
-    const url = `https://gnews.io/api/v4/top-headlines?q=${encodeURIComponent(q)}&lang=fr&max=9&apikey=${gk()}`;
+    // REMOVED THE PROXY: Calling GNews directly to avoid server timeouts
+    const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(q)}&lang=fr&max=9&apikey=${gk()}`;
     
-    console.log(`Direct HTTPS Request for [${cat}]:`, url);
+    console.log("Fetching directly from GNews:", url);
     const res = await fetch(url);
     
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
-      throw new Error(e.errors?.[0] || `GNews API server error ${res.status}`);
+      throw new Error(e.errors?.[0] || `GNews API error ${res.status} — check your key`);
     }
-    
     const data = await res.json();
-    if (!data.articles || data.articles.length === 0) {
-      throw new Error('No fresh articles found matching this category tab.');
-    }
-    
+    if (!data.articles?.length) throw new Error('No articles found. Try a different category.');
     articles = data.articles;
     renderNews(articles);
   } catch (e) {
-    showErr('Load Fail: ' + e.message);
-    console.error("GNews App Error:", e);
+    // If it's a structural key error, print it clearly
+    showErr('GNews API error ' + (e.message.includes('status') ? '408' : '') + ' — check your key');
+    console.error(e);
   } finally {
     btn.disabled = false; btn.classList.remove('loading');
   }
