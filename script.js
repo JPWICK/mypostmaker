@@ -190,7 +190,7 @@ FACEBOOK_CAPTION: [Full French Facebook caption. 4-5 sentences. Open with an emo
 
   // Find this line inside your callGemini(article, st) function:
 const res = await fetch(
-  `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${gm()}`,
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${gm()}`,
   {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
