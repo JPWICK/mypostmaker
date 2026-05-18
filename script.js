@@ -50,45 +50,49 @@ function setStyle(card, s) {
   style = s;
 }
 
-// ── FETCH NEWS ──
+// ── FETCH NEWS (WITH PERFECT CATEGORY SEPARATION) ──
 async function fetchNews() {
   if (!gk()) { showErr('Please enter your GNews API key first.'); if (!panelOpen) togglePanel(); return; }
   const btn = document.getElementById('fetchBtn');
   btn.disabled = true; btn.classList.add('loading');
   hideErr();
   try {
-    const qMap = {
-      politics: 'France politique',
-      general: 'France actualité',
-      business: 'France économie',
-      entertainment: 'France culture',
-      health: 'France santé',
-      sports: 'France sport'
+    // Map your UI tabs directly to official GNews API categories
+    const catMap = {
+      politics: 'politics',
+      general: 'general',
+      business: 'business',
+      entertainment: 'entertainment',
+      health: 'health',
+      sports: 'sports'
     };
-    const q = qMap[cat] || 'France';
     
-    // REMOVED THE PROXY: Calling GNews directly to avoid server timeouts
-    const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(q)}&lang=fr&max=9&apikey=${gk()}`;
+    const apiCategory = catMap[cat] || 'general';
     
-    console.log("Fetching directly from GNews:", url);
+    // We target France via the country parameter and use the native category filter
+    const url = `https://gnews.io/api/v4/top-headlines?category=${apiCategory}&lang=fr&country=fr&max=9&apikey=${gk()}`;
+    
+    console.log(`Fetching separated news for category [${apiCategory}]:`, url);
     const res = await fetch(url);
     
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
-      throw new Error(e.errors?.[0] || `GNews API error ${res.status} — check your key`);
+      throw new Error(e.errors?.[0] || `GNews API error ${res.status}`);
     }
+    
     const data = await res.json();
-    if (!data.articles?.length) throw new Error('No articles found. Try a different category.');
+    if (!data.articles?.length) throw new Error(`No recent articles found for ${apiCategory}.`);
+    
     articles = data.articles;
     renderNews(articles);
   } catch (e) {
-    // If it's a structural key error, print it clearly
-    showErr('GNews API error ' + (e.message.includes('status') ? '408' : '') + ' — check your key');
+    showErr('Load Fail: ' + e.message);
     console.error(e);
   } finally {
     btn.disabled = false; btn.classList.remove('loading');
   }
 }
+
 
 function ago(d) {
   const s = (Date.now() - new Date(d)) / 1000;
