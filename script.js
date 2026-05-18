@@ -57,10 +57,9 @@ async function fetchNews() {
   btn.disabled = true; btn.classList.add('loading');
   hideErr();
   try {
-    // These clean search terms give you perfect separation using your old logic
     const qMap = {
       politics: 'France politique',
-      general: 'France actualités',
+      general: 'France actualité',
       business: 'France économie',
       entertainment: 'France culture',
       health: 'France santé',
@@ -68,41 +67,28 @@ async function fetchNews() {
     };
     const q = qMap[cat] || 'France';
     
-    // 1. Build your clean direct target url
-    const targetUrl = `https://gnews.io/api/v4/search?q=${encodeURIComponent(q)}&lang=fr&max=9&apikey=${gk()}`;
+    // REMOVED THE PROXY: Calling GNews directly to avoid server timeouts
+    const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(q)}&lang=fr&max=9&apikey=${gk()}`;
     
-    // 2. Using a faster, standard cors proxy bypass for GitHub pages
-    const url = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-    
-    console.log("Fetching news via stable proxy route...", url);
+    console.log("Fetching directly from GNews:", url);
     const res = await fetch(url);
-    
-    // 3. Catch structural limit hits (like the 100 requests/day rule)
-    if (res.status === 403 || res.status === 429) {
-      throw new Error("GNews limit reached! Your free 100 daily requests are used up. Try again tomorrow or use a new key.");
-    }
     
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
-      throw new Error(e.errors?.[0] || `GNews Server returned error status ${res.status}`);
+      throw new Error(e.errors?.[0] || `GNews API error ${res.status} — check your key`);
     }
-    
     const data = await res.json();
-    if (!data.articles || data.articles.length === 0) {
-      throw new Error('No articles found matching this specific tab. Try another category!');
-    }
-    
+    if (!data.articles?.length) throw new Error('No articles found. Try a different category.');
     articles = data.articles;
     renderNews(articles);
   } catch (e) {
-    // This prints out the EXACT structural message on your yellow screen bar
-    showErr(e.message);
-    console.error("Critical Failure:", e);
+    // If it's a structural key error, print it clearly
+    showErr('GNews API error ' + (e.message.includes('status') ? '408' : '') + ' — check your key');
+    console.error(e);
   } finally {
     btn.disabled = false; btn.classList.remove('loading');
   }
 }
-
 
 
 function ago(d) {
