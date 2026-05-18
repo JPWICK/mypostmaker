@@ -164,21 +164,28 @@ async function generate(idx) {
 
 async function callGemini(article, st) {
   const imgStyle = styleInstructions[st];
-  const prompt = `You are an expert viral content creator for a French political news Facebook page. The page posts provocative debate images with NON👍/OUI❤️ polls — political engagement-bait style. Your content must feel urgent, emotional, and shareable.
+  
+  // THE NEW DEEP ANALYSIS PROMPT
+  const prompt = `You are an expert viral content creator for a French political news Facebook page. The page posts provocative debate images with NON👍/OUI❤️ polls. Your content must feel urgent, emotional, and shareable.
 
+Analyze this specific news article deeply for:
+1. PEOPLE: Who are the main individuals involved? (e.g., protestors, police officers, specific looking French politicians, workers, or crowds). Describe their clothing, actions, and facial expressions (tense, angry, celebrating).
+2. PLACE: Where is this taking place? (e.g., specific streets in Paris, public plazas, inside a French government building, industrial zones). Describe the environmental details, atmosphere, weather, and lighting.
+3. MOOD: What is the primary emotional weight of the story? (e.g., financial strain, civil unrest, victory, cultural pride).
+
+Based on these details, you must synthesize a powerful post matching this style framework:
 ${imgStyle}
 
-NEWS ARTICLE:
+NEWS ARTICLE TO ANALYZE:
 Title: ${article.title}
 Source: ${article.source?.name || 'French press'}
 Description: ${article.description || 'N/A'}
-Published: ${article.publishedAt}
 
 Generate content in this EXACT format — no extra text, no markdown:
 
-IMAGE_PROMPT: [4-6 sentence English image generation prompt following the style rules above. Very specific about lighting, mood, composition, French elements. End with: --ar 4:5 --style raw --q 2]
+IMAGE_PROMPT: [Write a highly detailed 4-6 sentence English image generation prompt for an AI like Midjourney or DALL-E 3. It must paint a cinematic, photojournalistic scene explicitly featuring the real PEOPLE, PLACES, and MOOD found in the news text above. Specify their realistic actions, expressions, the weather, and realistic environmental lighting. End with: wide angle photo, shot on 35mm lens, f/2.8, raw press photography style, cinematic lighting, dramatic composition, highly detailed, 8k --ar 4:5]
 
-TITRE: [Main French debate question or statement, ALL CAPS, max 10 words, provocative and emotional]
+TITRE: [Main French debate question or statement based on the article conflict, ALL CAPS, max 10 words, provocative and emotional]
 
 HIGHLIGHT_WORD: [ONE single word from the TITRE to highlight in RED color — the most emotionally charged word]
 
@@ -186,22 +193,19 @@ SOUS_TITRE: [Short French subtitle, max 10 words, adds context — or write NONE
 
 POLL_QUESTION: [The debate question for the poll card, French, ALL CAPS, ends with " ?", max 12 words, must create a clear YES/NO debate]
 
-FACEBOOK_CAPTION: [Full French Facebook caption. 4-5 sentences. Open with an emotional hook. State the key news fact. Create urgency or outrage. Ask followers to vote NON👍 or OUI❤️. End with 4-5 hashtags: #France #Politique #Débat #Actualité and one topic-specific tag]`;
+FACEBOOK_CAPTION: [Full French Facebook caption. 4-5 sentences. Open with an emotional hook directly referencing the news facts. Create urgency or outrage. Ask followers to vote NON👍 or OUI❤️. End with 4-5 hashtags: #France #Politique #Débat #Actualité and one specific topic tag based on the news]`;
 
-  // Find this line inside your callGemini(article, st) function:
-const res = await fetch(
-  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gm()}`,
-  {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.88, maxOutputTokens: 1100 }
-    })
-  }
-);
-
-
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gm()}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.85, maxOutputTokens: 1100 }
+      })
+    }
+  );
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
     throw new Error(e.error?.message || `Gemini API error ${res.status}`);
@@ -240,6 +244,7 @@ NON 👍  (blue)   |   OUI ❤️  (red)`;
 
   return { imagePrompt, frText, titre, highlight, sousTitre, pollQ, caption };
 }
+
 
 // ── MODAL ──
 function fillModal(article, r) {
