@@ -58,26 +58,21 @@ async function fetchNews() {
   hideErr();
   try {
     const qMap = {
-  politics: 'France politique', // Simplified from 'France politique gouvernement'
-  general: 'France',            // Simplified from 'France actualité'
-  business: 'France économie',
-  entertainment: 'France culture',
-  health: 'France santé',
-  sports: 'France sport'
-};
-
+      politics: 'France politique',
+      general: 'France actualité',
+      business: 'France économie',
+      entertainment: 'France culture',
+      health: 'France santé',
+      sports: 'France sport'
+    };
     const q = qMap[cat] || 'France';
     
-    // 1. Your original target URL
-    const targetUrl = `https://gnews.io/api/v4/search?q=${encodeURIComponent(q)}&lang=fr&max=9&apikey=${gk()}`;
+    // REMOVED THE PROXY: Calling GNews directly to avoid server timeouts
+    const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(q)}&lang=fr&max=9&apikey=${gk()}`;
     
-    // 2. Wrap it with a public CORS proxy to bypass the browser block
-    const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
-    
-    console.log("Fetching via CORS proxy:", url);
-    
+    console.log("Fetching directly from GNews:", url);
     const res = await fetch(url);
-
+    
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
       throw new Error(e.errors?.[0] || `GNews API error ${res.status} — check your key`);
@@ -87,7 +82,9 @@ async function fetchNews() {
     articles = data.articles;
     renderNews(articles);
   } catch (e) {
-    showErr(e.message);
+    // If it's a structural key error, print it clearly
+    showErr('GNews API error ' + (e.message.includes('status') ? '408' : '') + ' — check your key');
+    console.error(e);
   } finally {
     btn.disabled = false; btn.classList.remove('loading');
   }
@@ -184,17 +181,19 @@ POLL_QUESTION: [The debate question for the poll card, French, ALL CAPS, ends wi
 
 FACEBOOK_CAPTION: [Full French Facebook caption. 4-5 sentences. Open with an emotional hook. State the key news fact. Create urgency or outrage. Ask followers to vote NON👍 or OUI❤️. End with 4-5 hashtags: #France #Politique #Débat #Actualité and one topic-specific tag]`;
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${gm()}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.88, maxOutputTokens: 1100 }
-      })
-    }
-  );
+  // Find this line inside your callGemini(article, st) function:
+const res = await fetch(
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${gm()}`,
+  {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.88, maxOutputTokens: 1100 }
+    })
+  }
+);
+
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
     throw new Error(e.error?.message || `Gemini API error ${res.status}`);
