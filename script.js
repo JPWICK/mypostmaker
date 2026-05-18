@@ -57,6 +57,7 @@ async function fetchNews() {
   btn.disabled = true; btn.classList.add('loading');
   hideErr();
   try {
+    // Pure structural keyword tokens to force perfect category separation
     const qMap = {
       politics: 'politique',
       general: 'actualité',
@@ -66,23 +67,26 @@ async function fetchNews() {
       sports: 'sport'
     };
     const q = qMap[cat] || 'actualité';
-   
+    
+    // 1. Target URL pointing directly to structural GNews French headlines
     const targetUrl = `https://gnews.io/api/v4/top-headlines?q=${encodeURIComponent(q)}&lang=fr&max=9&apikey=${gk()}`;
+    
+    // 2. Wrap it with corsproxy.io to bypass the browser's "Failed to fetch" block instantly
     const url = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-   
+    
     console.log(`Fetching isolated news for [${cat}] via stable proxy...`);
     const res = await fetch(url);
-   
+    
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
       throw new Error(e.errors?.[0] || `GNews API server error ${res.status}`);
     }
-   
+    
     const data = await res.json();
     if (!data.articles || data.articles.length === 0) {
       throw new Error('No fresh articles found matching this category tab.');
     }
-   
+    
     articles = data.articles;
     renderNews(articles);
   } catch (e) {
@@ -133,10 +137,22 @@ function renderNews(arts) {
   c.appendChild(g);
 }
 
+// ── GEMINI ──
+// ================================================================
+//  COMPLETE DROP-IN REPLACEMENT FOR YOUR FRANCE NEWS PAGE
+//  Paste ALL of this inside your <script> tag, replacing:
+//    - styleInstructions
+//    - callGemini()
+//    - parse()
+//    - fillModal()
+// ================================================================
+
 // ── STEP 1: STYLE COMPOSITION RULES ─────────────────────────────
 const styleInstructions = {
-  poll: `
+
+poll: `
 COMPOSITION — “POLL DEBATE” STYLE (your main viral style):
+
 - Portrait 4:5 ratio
 - TOP 55%: Main dramatic scene. Politician figure large on LEFT foreground (waist up), real crisis scene on RIGHT background
 - BOTTOM 45%: Must fade to solid near-black — empty zone for text/poll graphics overlay
@@ -144,92 +160,102 @@ COMPOSITION — “POLL DEBATE” STYLE (your main viral style):
 - Background RIGHT: the actual real-world scene from the news (protest, parliament, housing, border, street)
 - Lighting: dramatic cinematic rim light on figure, moody overcast or golden hour background
 - Color grade: dark, high contrast, slightly desaturated, French political tones (deep blue/red)`,
- 
+  
   shock: `
-COMPOSITION — “SHOCK & IMPACT” STYLE:
+  COMPOSITION — “SHOCK & IMPACT” STYLE:
 - Full frame dramatic wide establishing shot
 - BOTTOM 40% fades to solid dark for text overlay
 - The SCENE is the subject — no single dominant person
 - Could be: stormy sky over Paris, massive protest crowd, empty Palais Bourbon at night
 - Color grade: dark, ominous, high contrast, cold tones`,
- 
+  
   split: `
-COMPOSITION — “SPLIT COMPARISON” STYLE:
+  COMPOSITION — “SPLIT COMPARISON” STYLE:
 - Frame split diagonally as if physically torn
 - LEFT HALF: warm golden tones — prosperity, traditional France, café, family, Eiffel Tower
 - RIGHT HALF: cold gray/blue — poverty, urban tension, crowded HLM buildings, grey skies
 - French tricolor flag tears dramatically through the diagonal split center
 - BOTTOM 30%: solid dark gradient for text overlay`,
- 
+  
   portrait: `
-COMPOSITION — “POLITICAL PORTRAIT” STYLE:
+  COMPOSITION — “POLITICAL PORTRAIT” STYLE:
 - Tight 3/4 angle portrait filling LEFT 60% of frame from chest up
 - Subject looking slightly off-camera, intense expression
 - RIGHT side: blurred parliament, protest, or relevant political background
 - BOTTOM 40%: dark gradient fading to black for text overlay
 - Dramatic side rim lighting, dark moody background`
-};
+  };
 
 // ── STEP 2: FETCH FULL ARTICLE TEXT ─────────────────────────────
+// Uses a CORS proxy to read the full article from its URL
+// This gives Gemini MUCH more context: real names, facts, numbers, quotes
+
 async function fetchFullArticle(url) {
-  if (!url) return null;
+if (!url) return null;
 
-  const proxies = [
-    `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-    `https://corsproxy.io/?${encodeURIComponent(url)}`
-  ];
+// Try AllOrigins proxy first (free, no key needed)
+const proxies = [
+`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+`https://corsproxy.io/?${encodeURIComponent(url)}`
+];
 
-  for (const proxyUrl of proxies) {
-    try {
-      const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(6000) });
-      if (!res.ok) continue;
+for (const proxyUrl of proxies) {
+try {
+const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(6000) });
+if (!res.ok) continue;
 
-      const data = await res.json();
-      const html = data.contents || data;
-      if (typeof html !== 'string') continue;
+```
+  const data = await res.json();
+  const html = data.contents || data;
+  if (typeof html !== 'string') continue;
 
-      // Strip HTML tags and extract readable text
-      const text = html
-        .replace(/<script[\s\S]*?<\/script>/gi, '')
-        .replace(/<style[\s\S]*?<\/style>/gi, '')
-        .replace(/<nav[\s\S]*?<\/nav>/gi, '')
-        .replace(/<header[\s\S]*?<\/header>/gi, '')
-        .replace(/<footer[\s\S]*?<\/footer>/gi, '')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/\s{3,}/g, '\n')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .trim();
+  // Strip HTML tags and extract readable text
+  const text = html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<nav[\s\S]*?<\/nav>/gi, '')
+    .replace(/<header[\s\S]*?<\/header>/gi, '')
+    .replace(/<footer[\s\S]*?<\/footer>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s{3,}/g, '\n')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .trim();
 
-      if (text.length > 200) {
-        return text.slice(0, 3000);
-      }
-    } catch (e) {
-      continue;
-    }
+  // Return first 3000 chars — enough for Gemini context, not too long
+  if (text.length > 200) {
+    return text.slice(0, 3000);
   }
-  return null;
+} catch (e) {
+  continue; // try next proxy
+}
+```
+
+}
+return null; // both proxies failed — fall back to title+description only
 }
 
 // ── STEP 3: MAIN GEMINI CALL ─────────────────────────────────────
 async function callGemini(article, st) {
-  const imgStyle = styleInstructions[st] || styleInstructions.poll;
-  let fullText = null;
- 
-  try {
-    fullText = await fetchFullArticle(article.url);
-  } catch(e) {
-    fullText = null;
-  }
+const imgStyle = styleInstructions[st] || styleInstructions.poll;
 
-  const articleContext = fullText
-    ? ` ARTICLE TITLE: ${article.title} SOURCE: ${article.source?.name || 'French press'} PUBLISHED: ${article.publishedAt || 'Recent'} FULL ARTICLE TEXT (use this for all details — names, facts, numbers, quotes): """ ${fullText} """`.trim()
-    : ` ARTICLE TITLE: ${article.title} SOURCE: ${article.source?.name || 'French press'} PUBLISHED: ${article.publishedAt || 'Recent'} DESCRIPTION: ${article.description || 'No description available'} NOTE: Only title and description available. Extract maximum detail from these.`.trim();
+// — Fetch full article text for richer context —
+let fullText = null;
+try {
+fullText = await fetchFullArticle(article.url);
+} catch(e) {
+fullText = null;
+}
 
-  const masterPrompt = `
+// Build article context block — use full text if available
+const articleContext = fullText
+? ` ARTICLE TITLE: ${article.title} SOURCE: ${article.source?.name || 'French press'} PUBLISHED: ${article.publishedAt || 'Recent'} FULL ARTICLE TEXT (use this for all details — names, facts, numbers, quotes): """ ${fullText} """`.trim()
+: ` ARTICLE TITLE: ${article.title} SOURCE: ${article.source?.name || 'French press'} PUBLISHED: ${article.publishedAt || 'Recent'} DESCRIPTION: ${article.description || 'No description available'} NOTE: Only title and description available. Extract maximum detail from these.`.trim();
+
+const masterPrompt = `
 You are the lead visual content strategist for a viral French political Facebook page with 500,000+ followers.
 Your posts use dramatic AI-generated images with bold French text overlays and NON👍/OUI❤️ polls.
 Every post must feel urgent, emotionally charged, and debate-worthy.
@@ -249,6 +275,7 @@ Read the article carefully and extract:
 ${imgStyle}
 
 ━━━ IMAGE PROMPT RULES (follow ALL of these) ━━━
+
 1. REAL POLITICIAN RESEMBLANCE: If article names a specific politician, describe a figure that STRONGLY RESEMBLES them:
 - Macron: slim man, early 40s, brown hair neatly combed, clean-shaven, sharp dark navy suit, confident posture
 - Le Pen: woman, mid-50s, straight blonde hair to shoulders, dark blazer, firm expression
@@ -258,7 +285,7 @@ ${imgStyle}
 - Barnier: tall older man, 70s, silver grey hair, distinguished look, formal suit
 - For any OTHER politician: describe their actual known appearance from the article context
 - If NO politician named: use a generic “French political figure” description
-2. BACKGROUND SCENE: Show the EXACT real-world situation from the news:
+1. BACKGROUND SCENE: Show the EXACT real-world situation from the news:
 - Immigration story → French border control, suburban banlieue at night, overcrowded waiting area
 - Economy/budget → Empty factory, struggling shop fronts, busy stock exchange, government budget documents
 - Housing → Crumbling HLM building, squat occupation, homeless camp under Paris bridge
@@ -266,10 +293,10 @@ ${imgStyle}
 - Elections → Polling station, campaign poster walls, packed political rally
 - Health/social → Hospital corridor, social services office queue, pharmacy
 - Environment → Flooded French farmland, wildfire in Provence, pollution over city
-3. FRENCH IDENTITY ELEMENTS: Always include at least ONE:
+1. FRENCH IDENTITY ELEMENTS: Always include at least ONE:
    French tricolor flag, Palais Bourbon exterior, Arc de Triomphe, Marianne statue, French police uniform, Haussmann-style buildings, Seine river
-4. TEXT SPACE: State clearly: “the lower 45% of the image fades smoothly to solid near-black (#0a0a0a) — this zone is completely empty of scene detail, reserved for graphic text overlays”
-5. TECHNICAL TAG: End with exactly: shot on Canon EOS R5, 35mm lens, f/2.8, ISO 800, photojournalism style, dramatic rim lighting, ultra-sharp focus on subject, 8K resolution –ar 4:5 –style raw –q 2
+1. TEXT SPACE: State clearly: “the lower 45% of the image fades smoothly to solid near-black (#0a0a0a) — this zone is completely empty of scene detail, reserved for graphic text overlays”
+1. TECHNICAL TAG: End with exactly: shot on Canon EOS R5, 35mm lens, f/2.8, ISO 800, photojournalism style, dramatic rim lighting, ultra-sharp focus on subject, 8K resolution –ar 4:5 –style raw –q 2
 
 ━━━ OUTPUT FORMAT ━━━
 Respond with ONLY these fields in order. No markdown. No extra text. No field explanations.
@@ -304,63 +331,68 @@ Sentence 5 — CALL TO ACTION: “👉 Donnez votre avis : votez 👍 NON ou ❤
 Hashtags: #France #Politique #Débat #Actualité + 2 specific tags from the news topic]
 
 IMAGE_NEGATIVE:
-[5-8 comma-separated things to EXCLUDE from the image. Be specific. Example: “no smiling faces, no text or letters in scene, no cartoon style, no bright cheerful colors, no American settings, no modern minimalist aesthetic”]`.trim();
+[5-8 comma-separated things to EXCLUDE from the image. Be specific. Example: “no smiling faces, no text or letters in scene, no cartoon style, no bright cheerful colors, no American settings, no modern minimalist aesthetic”]
+`.trim();
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gm()}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: masterPrompt }] }],
-        generationConfig: {
-          temperature: 0.82,
-          maxOutputTokens: 1600,
-          topK: 40,
-          topP: 0.95
-        }
-      })
-    }
-  );
+const res = await fetch(
+`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${gm()}`,
+{
+method: ‘POST’,
+headers: { ‘Content-Type’: ‘application/json’ },
+body: JSON.stringify({
+contents: [{ parts: [{ text: masterPrompt }] }],
+generationConfig: {
+temperature: 0.82,
+maxOutputTokens: 1600,
+topK: 40,
+topP: 0.95
+}
+})
+}
+);
 
-  if (!res.ok) {
-    const e = await res.json().catch(() => ({}));
-    throw new Error(e.error?.message || `Gemini API error ${res.status} — check your API key`);
-  }
+if (!res.ok) {
+const e = await res.json().catch(() => ({}));
+throw new Error(e.error?.message || `Gemini API error ${res.status} — check your API key`);
+}
 
-  const data = await res.json();
-  const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!rawText) throw new Error('Gemini returned empty response. Please try again.');
+const data = await res.json();
+const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+if (!rawText) throw new Error(‘Gemini returned empty response. Please try again.’);
 
-  return parse(rawText);
+return parse(rawText);
 }
 
 // ── STEP 4: ROBUST PARSER ────────────────────────────────────────
 function parse(text) {
-  function get(fieldName) {
-    const pattern = new RegExp(
-      '(?:^|\\n)\\*{0,2}' + fieldName + '\\*{0,2}\\s*:\\s*([\\s\\S]*?)(?=\\n\\*{0,2}[A-Z_]{3,}\\*{0,2}\\s*:|$)',
-      'i'
-    );
-    const m = text.match(pattern);
-    return m ? m[1].trim() : '';
-  }
 
-  const imagePrompt     = get('IMAGE_PROMPT');
-  const titre           = get('TITRE');
-  const highlightPhrase = get('HIGHLIGHT_PHRASE');
-  const sousTitre       = get('SOUS_TITRE');
-  const pollQuestion    = get('POLL_QUESTION');
-  const nonLabel        = get('NON_LABEL');
-  const ouiLabel        = get('OUI_LABEL');
-  const caption         = get('FACEBOOK_CAPTION');
-  const negative        = get('IMAGE_NEGATIVE');
+function get(fieldName) {
+// Handles “FIELD:” or “**FIELD:**” or “FIELD :” variations Gemini sometimes outputs
+const pattern = new RegExp(
+‘(?:^|\n)\*{0,2}’ + fieldName + ’\*{0,2}\s*:\s*([\s\S]*?)(?=\n\*{0,2}[A-Z_]{3,}\*{0,2}\s*:|$)’,
+‘i’
+);
+const m = text.match(pattern);
+return m ? m[1].trim() : ‘’;
+}
 
-  const fullImagePrompt = negative
-    ? `${imagePrompt}\n\nNEGATIVE PROMPT: ${negative}`
-    : imagePrompt;
+const imagePrompt     = get(‘IMAGE_PROMPT’);
+const titre           = get(‘TITRE’);
+const highlightPhrase = get(‘HIGHLIGHT_PHRASE’);
+const sousTitre       = get(‘SOUS_TITRE’);
+const pollQuestion    = get(‘POLL_QUESTION’);
+const nonLabel        = get(‘NON_LABEL’);
+const ouiLabel        = get(‘OUI_LABEL’);
+const caption         = get(‘FACEBOOK_CAPTION’);
+const negative        = get(‘IMAGE_NEGATIVE’);
 
-  const frText = `
+// Combine image prompt + negative prompt for easy copy-paste
+const fullImagePrompt = negative
+? `${imagePrompt}\n\nNEGATIVE PROMPT: ${negative}`
+: imagePrompt;
+
+// French text overlay card — formatted for the designer
+const frText = `
 MAIN TITLE — bold white ALL CAPS large font:
 ${titre}
 
@@ -368,53 +400,64 @@ HIGHLIGHT WITH YELLOW/RED BRUSH STROKE:
 “${highlightPhrase}”
 
 SUBTITLE — smaller white text below title:
-${(sousTitre && sousTitre !== 'NONE') ? sousTitre : '(no subtitle)'}
+${(sousTitre && sousTitre !== ‘NONE’) ? sousTitre : ‘(no subtitle)’}
 
 ━━━ POLL SECTION — bottom of image ━━━
 Poll question:
 ${pollQuestion}
 
 LEFT SIDE — NON 👍 (blue):
-${nonLabel || 'NON'}
+${nonLabel || ‘NON’}
 
 RIGHT SIDE — OUI ❤️ (red):
-${ouiLabel || 'OUI'}`.trim();
+${ouiLabel || ‘OUI’}
+`.trim();
 
-  return {
-    imagePrompt: fullImagePrompt,
-    frText,
-    titre,
-    highlightPhrase,
-    sousTitre,
-    pollQuestion,
-    nonLabel,
-    ouiLabel,
-    caption,
-    negative
-  };
+return {
+imagePrompt: fullImagePrompt,
+frText,
+titre,
+highlightPhrase,
+sousTitre,
+pollQuestion,
+nonLabel,
+ouiLabel,
+caption,
+negative
+};
 }
 
 // ── STEP 5: UPDATED fillModal() ──────────────────────────────────
 function fillModal(article, r) {
-  document.getElementById('modalRef').textContent = article.title;
-  document.getElementById('pImage').textContent = r.imagePrompt;
-  document.getElementById('pText').textContent = r.frText;
+// Article reference
+document.getElementById(‘modalRef’).textContent = article.title;
 
-  let qHtml = r.pollQuestion || r.titre || '';
-  if (r.highlightPhrase && qHtml) {
-    const escaped = r.highlightPhrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const re = new RegExp('(' + escaped + ')', 'i');
-    qHtml = qHtml.replace(re, '<span class="hl">$1</span>');
-  }
-  document.getElementById('pollQ').innerHTML = qHtml;
+// Tab 0 — Image prompt
+document.getElementById(‘pImage’).textContent = r.imagePrompt;
 
-  const nonEl = document.querySelector('.poll-opt.non .poll-label');
-  const ouiEl = document.querySelector('.poll-opt.oui .poll-label');
-  if (nonEl) nonEl.innerHTML = `NON<br><small style="font-size:10px;font-weight:400;opacity:0.8">${r.nonLabel || ''}</small>`;
-  if (ouiEl) ouiEl.innerHTML = `OUI<br><small style="font-size:10px;font-weight:400;opacity:0.8">${r.ouiLabel || ''}</small>`;
+// Tab 1 — French text overlay
+document.getElementById(‘pText’).textContent = r.frText;
 
-  document.getElementById('pCaption').textContent = r.caption;
-  switchTab(0);
+// Tab 2 — Poll preview with highlighted phrase
+let qHtml = r.pollQuestion || r.titre || ‘’;
+if (r.highlightPhrase && qHtml) {
+const escaped = r.highlightPhrase.replace(/[.*+?^${}()|[]\]/g, ‘\$&’);
+const re = new RegExp(’(’ + escaped + ‘)’, ‘i’);
+qHtml = qHtml.replace(re, ‘<span class="hl">$1</span>’);
+}
+document.getElementById(‘pollQ’).innerHTML = qHtml;
+
+// Update NON/OUI labels with news-specific text
+const nonEl = document.querySelector(’.poll-opt.non .poll-label’);
+const ouiEl = document.querySelector(’.poll-opt.oui .poll-label’);
+if (nonEl) nonEl.innerHTML = `NON<br><small style="font-size:10px;font-weight:400;opacity:0.8">${r.nonLabel || ''}</small>`;
+if (ouiEl) ouiEl.innerHTML = `OUI<br><small style="font-size:10px;font-weight:400;opacity:0.8">${r.ouiLabel || ''}</small>`;
+
+// Tab 3 — Facebook caption
+document.getElementById(‘pCaption’).textContent = r.caption;
+
+// Always start on tab 0
+switchTab(0);
 }
 
 async function regenerate() {
