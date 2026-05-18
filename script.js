@@ -57,7 +57,7 @@ async function fetchNews() {
   btn.disabled = true; btn.classList.add('loading');
   hideErr();
   try {
-    // Isolated key terms for perfect separation
+    // Pure structural keyword tokens to force perfect category separation
     const qMap = {
       politics: 'politique',
       general: 'actualité',
@@ -68,10 +68,13 @@ async function fetchNews() {
     };
     const q = qMap[cat] || 'actualité';
     
-    // CRITICAL: We hit top-headlines directly over SECURE HTTPS with no country filter to prevent CORS rules from triggering
-    const url = `https://gnews.io/api/v4/top-headlines?q=${encodeURIComponent(q)}&lang=fr&max=9&apikey=${gk()}`;
+    // 1. Target URL pointing directly to structural GNews French headlines
+    const targetUrl = `https://gnews.io/api/v4/top-headlines?q=${encodeURIComponent(q)}&lang=fr&max=9&apikey=${gk()}`;
     
-    console.log(`Direct HTTPS Request for [${cat}]:`, url);
+    // 2. Wrap it with corsproxy.io to bypass the browser's "Failed to fetch" block instantly
+    const url = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+    
+    console.log(`Fetching isolated news for [${cat}] via stable proxy...`);
     const res = await fetch(url);
     
     if (!res.ok) {
