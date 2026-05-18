@@ -50,14 +50,14 @@ function setStyle(card, s) {
   style = s;
 }
 
-// ── FETCH NEWS (WITH PERFECT CATEGORY SEPARATION) ──
+// ── FETCH NEWS (WITH WORKING CORS PROXY & CATEGORY SEPARATION) ──
 async function fetchNews() {
   if (!gk()) { showErr('Please enter your GNews API key first.'); if (!panelOpen) togglePanel(); return; }
   const btn = document.getElementById('fetchBtn');
   btn.disabled = true; btn.classList.add('loading');
   hideErr();
   try {
-    // Map your UI tabs directly to official GNews API categories
+    // Exact valid category terms matching GNews structural specifications
     const catMap = {
       politics: 'politics',
       general: 'general',
@@ -69,25 +69,30 @@ async function fetchNews() {
     
     const apiCategory = catMap[cat] || 'general';
     
-    // We target France via the country parameter and use the native category filter
-    const url = `https://gnews.io/api/v4/top-headlines?category=${apiCategory}&lang=fr&country=fr&max=9&apikey=${gk()}`;
+    // 1. Build the direct clean target URL targeting France headlines
+    const targetUrl = `https://gnews.io/api/v4/top-headlines?category=${apiCategory}&lang=fr&country=fr&max=9&apikey=${gk()}`;
     
-    console.log(`Fetching separated news for category [${apiCategory}]:`, url);
+    // 2. Wrap it inside the open-source AllOrigins JSON wrapper to satisfy browser CORS checks
+    const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+    
+    console.log(`Fetching isolated news for category [${apiCategory}] via secure wrapper...`);
     const res = await fetch(url);
     
     if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      throw new Error(e.errors?.[0] || `GNews API error ${res.status}`);
+      throw new Error(`Server returned status code: ${res.status}`);
     }
     
     const data = await res.json();
-    if (!data.articles?.length) throw new Error(`No recent articles found for ${apiCategory}.`);
+    
+    if (!data.articles || data.articles.length === 0) {
+      throw new Error(`No recent articles found for the ${apiCategory} category.`);
+    }
     
     articles = data.articles;
     renderNews(articles);
   } catch (e) {
     showErr('Load Fail: ' + e.message);
-    console.error(e);
+    console.error("GNews Error:", e);
   } finally {
     btn.disabled = false; btn.classList.remove('loading');
   }
