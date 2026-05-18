@@ -57,40 +57,42 @@ async function fetchNews() {
   btn.disabled = true; btn.classList.add('loading');
   hideErr();
   try {
+    // Isolated key terms for perfect separation
     const qMap = {
-      politics: 'France politique',
-      general: 'France actualité',
-      business: 'France économie',
-      entertainment: 'France culture',
-      health: 'France santé',
-      sports: 'France sport'
+      politics: 'politique',
+      general: 'actualité',
+      business: 'économie',
+      entertainment: 'culture',
+      health: 'santé',
+      sports: 'sport'
     };
-    const q = qMap[cat] || 'France';
+    const q = qMap[cat] || 'actualité';
     
-    // REMOVED THE PROXY: Calling GNews directly to avoid server timeouts
-    const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(q)}&lang=fr&max=9&apikey=${gk()}`;
+    // CRITICAL: We hit top-headlines directly over SECURE HTTPS with no country filter to prevent CORS rules from triggering
+    const url = `https://gnews.io/api/v4/top-headlines?q=${encodeURIComponent(q)}&lang=fr&max=9&apikey=${gk()}`;
     
-    console.log("Fetching directly from GNews:", url);
+    console.log(`Direct HTTPS Request for [${cat}]:`, url);
     const res = await fetch(url);
     
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
-      throw new Error(e.errors?.[0] || `GNews API error ${res.status} — check your key`);
+      throw new Error(e.errors?.[0] || `GNews API server error ${res.status}`);
     }
+    
     const data = await res.json();
-    if (!data.articles?.length) throw new Error('No articles found. Try a different category.');
+    if (!data.articles || data.articles.length === 0) {
+      throw new Error('No fresh articles found matching this category tab.');
+    }
+    
     articles = data.articles;
     renderNews(articles);
   } catch (e) {
-    // If it's a structural key error, print it clearly
-    showErr('GNews API error ' + (e.message.includes('status') ? '408' : '') + ' — check your key');
-    console.error(e);
+    showErr('Load Fail: ' + e.message);
+    console.error("GNews App Error:", e);
   } finally {
     btn.disabled = false; btn.classList.remove('loading');
   }
 }
-
-
 
 function ago(d) {
   const s = (Date.now() - new Date(d)) / 1000;
