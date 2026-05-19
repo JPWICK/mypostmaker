@@ -50,89 +50,61 @@ function setStyle(card, s) {
   style = s;
 }
 
-// ── FETCH NEWS ──
+// ── FETCH NEWS (BFMTV Direct RSS) ──
 async function fetchNews() {
-  if (!gk()) { showErr('Please enter your GNews API key first.'); if (!panelOpen) togglePanel(); return; }
   const btn = document.getElementById('fetchBtn');
   btn.disabled = true; btn.classList.add('loading');
   hideErr();
   try {
-    const qMap = {
-      politics: 'politique',
-      general: 'actualité',
-      business: 'économie',
-      entertainment: 'culture',
-      health: 'santé',
-      sports: 'sport'
+    const catRSSMap = {
+      politics:      'https://www.bfmtv.com/rss/politique/',
+      general:       'https://www.bfmtv.com/rss/news-24-7/',
+      business:      'https://www.bfmtv.com/rss/economie/',
+      entertainment: 'https://www.bfmtv.com/rss/culture/',
+      health:        'https://www.bfmtv.com/rss/sante/',
+      sports:        'https://www.bfmtv.com/rss/sport/'
     };
-    const q = qMap[cat] || 'actualité';
-    
-    // const targetUrl = `https://gnews.io/api/v4/top-headlines?q=${encodeURIComponent(q)}&lang=fr&max=9&apikey=${gk()}`;
-    const targetUrl = `https://gnews.io/api/v4/top-headlines?q=${encodeURIComponent(q)}&lang=fr&country=fr&max=9&apikey=${gk()}`;
-    const url = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-    
-    console.log(`Fetching isolated news for [${cat}] via stable proxy...`);
-    const res = await fetch(url);
-    
-    if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      throw new Error(e.errors?.[0] || `GNews API server error ${res.status}`);
-    }
-    
+
+    const rssUrl = catRSSMap[cat] || catRSSMap['general'];
+
+    // rss2json converts RSS to clean JSON — free, no key needed
+    const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}&api_key=&count=9`;
+
+    console.log(`Fetching BFMTV RSS [${cat}]...`);
+    const res = await fetch(apiUrl);
+
+    if (!res.ok) throw new Error(`BFMTV RSS fetch error: ${res.status}`);
+
     const data = await res.json();
-    if (!data.articles || data.articles.length === 0) {
-      throw new Error('No fresh articles found matching this category tab.');
+
+    if (data.status !== 'ok' || !data.items || data.items.length === 0) {
+      throw new Error('No articles found from BFMTV for this category.');
     }
-    
-    articles = data.articles;
+
+    // ── Map RSS fields to your existing article format ──
+    articles = data.items.map(item => ({
+      title:       item.title        || '',
+      description: item.description  || '',
+      content:     item.content      || item.description || '', // full HTML content
+      url:         item.link         || '',
+      image:       item.thumbnail    || item.enclosure?.link || null,
+      publishedAt: item.pubDate      || new Date().toISOString(),
+      source: {
+        name: 'BFMTV',
+        url:  'https://www.bfmtv.com'
+      }
+    }));
+
     renderNews(articles);
+
   } catch (e) {
     showErr('Load Fail: ' + e.message);
-    console.error("GNews App Error:", e);
+    console.error("BFMTV RSS Error:", e);
   } finally {
     btn.disabled = false; btn.classList.remove('loading');
   }
 }
 
-function ago(d) {
-  const s = (Date.now() - new Date(d)) / 1000;
-  if (s < 60) return 'Just now';
-  if (s < 3600) return `${Math.floor(s/60)}m ago`;
-  if (s < 86400) return `${Math.floor(s/3600)}h ago`;
-  return `${Math.floor(s/86400)}d ago`;
-}
-
-function renderNews(arts) {
-  document.getElementById('newsLabel').style.display = 'flex';
-  const c = document.getElementById('newsContainer');
-  const g = document.createElement('div');
-  g.className = 'news-grid';
-  arts.forEach((a, i) => {
-    const card = document.createElement('div');
-    card.className = 'news-card';
-    card.innerHTML = `
-      <div class="card-img">
-        ${a.image ? `<img src="${a.image}" alt="" onerror="this.parentElement.innerHTML='🗼'"><div class="card-img-fade"></div>` : '🗼'}
-      </div>
-      <div class="card-body">
-        <div class="card-meta">
-          <span class="card-source">${a.source?.name || 'French Press'}</span>
-          <span class="card-dot"></span>
-          <span class="card-time">${ago(a.publishedAt)}</span>
-          <span class="card-cat-tag">${cat}</span>
-        </div>
-        <div class="card-title">${a.title}</div>
-        <div class="card-desc">${a.description || ''}</div>
-        <button class="gen-btn" id="gb${i}" onclick="generate(${i})">
-          ✨ <span class="gb-label">Generate Viral Prompt</span>
-          <div class="mini-spin"></div>
-        </button>
-      </div>`;
-    g.appendChild(card);
-  });
-  c.innerHTML = '';
-  c.appendChild(g);
-}
 
 // ── STEP 1: STYLE COMPOSITION RULES ─────────────────────────────
 const styleInstructions = {
