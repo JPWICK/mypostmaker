@@ -370,7 +370,45 @@ IMAGE_NEGATIVE:
 
   return parse(rawText);
 }
+// ── TAB SWITCHER SYSTEM ──
+function switchTab(tabIndex) {
+  // 1. Update the active state on the tab buttons
+  const tabs = document.querySelectorAll('.modal-tab');
+  tabs.forEach((tab, idx) => {
+    if (idx === tabIndex) {
+      tab.classList.add('active');
+    } else {
+      tab.classList.remove('active');
+    }
+  });
 
+  // 2. Update the display state on the content panes
+  const panes = document.querySelectorAll('.tab-pane');
+  panes.forEach((pane, idx) => {
+    if (idx === tabIndex) {
+      pane.style.display = 'block'; // or pane.classList.add('active') depending on your CSS
+    } else {
+      pane.style.display = 'none';  // or pane.classList.remove('active')
+    }
+  });
+}
+
+// ── MODAL WINDOW CONTROLS ──
+function openModal() {
+  const modal = document.getElementById('resultModal') || document.getElementById('modal');
+  if (modal) {
+    modal.classList.add('open');
+    modal.style.display = 'flex'; // Ensures visibility if not handled by CSS class
+  }
+}
+
+function closeModal() {
+  const modal = document.getElementById('resultModal') || document.getElementById('modal');
+  if (modal) {
+    modal.classList.remove('open');
+    modal.style.display = 'none';
+  }
+}
 // ── STEP 4: ROBUST PARSER ────────────────────────────────────────
 function parse(text) {
   function get(fieldName) {
