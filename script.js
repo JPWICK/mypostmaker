@@ -7,18 +7,14 @@ let panelOpen = true;
 
 // ── KEYS ──
 function saveKeys() {
-  const gkInput = document.getElementById('gnewsKey').value.trim();
   const gmInput = document.getElementById('geminiKey').value.trim();
-  if (!gkInput || !gmInput) { showErr('Please enter both API keys.'); return; }
-  sessionStorage.setItem('_gn', gkInput);
+  if (!gmInput) { showErr('Please enter your Gemini API key.'); return; }
   sessionStorage.setItem('_gm', gmInput);
-  document.getElementById('gnewsKey').classList.add('ok');
   document.getElementById('geminiKey').classList.add('ok');
-  document.getElementById('cfgSub').textContent = '✓ Keys active — cleared automatically when tab closes';
+  document.getElementById('cfgSub').textContent = '✓ Gemini key active — cleared when tab closes';
   togglePanel();
-  toast('Keys saved for this session!');
+  toast('Key saved for this session!');
 }
-const gk = () => sessionStorage.getItem('_gn') || '';
 const gm = () => sessionStorage.getItem('_gm') || '';
 
 function toggleVis(id) {
@@ -33,10 +29,13 @@ function togglePanel() {
 }
 
 window.addEventListener('load', () => {
-  const k1 = gk(), k2 = gm();
-  if (k1) { document.getElementById('gnewsKey').value = k1; document.getElementById('gnewsKey').classList.add('ok'); }
-  if (k2) { document.getElementById('geminiKey').value = k2; document.getElementById('geminiKey').classList.add('ok'); }
-  if (k1 && k2) { document.getElementById('cfgSub').textContent = '✓ Keys active — session only'; togglePanel(); }
+  const k2 = gm();
+  if (k2) {
+    document.getElementById('geminiKey').value = k2;
+    document.getElementById('geminiKey').classList.add('ok');
+    document.getElementById('cfgSub').textContent = '✓ Key active — session only';
+    togglePanel();
+  }
 });
 
 function setCat(btn, c) {
@@ -50,7 +49,7 @@ function setStyle(card, s) {
   style = s;
 }
 
-// ── FETCH NEWS (BFMTV Direct RSS via CORS Proxy) ──
+// ── FETCH NEWS (BFMTV Direct RSS) ──
 async function fetchNews() {
   const btn = document.getElementById('fetchBtn');
   btn.disabled = true; btn.classList.add('loading');
@@ -66,60 +65,61 @@ async function fetchNews() {
     };
 
     const rssUrl = catRSSMap[cat] || catRSSMap['general'];
-
-    // Fetch raw RSS XML via CORS proxy
     const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(rssUrl)}`;
 
     console.log(`Fetching BFMTV RSS [${cat}]...`);
     const res = await fetch(proxyUrl);
-
     if (!res.ok) throw new Error(`RSS fetch error: ${res.status}`);
 
     const xmlText = await res.text();
+    console.log('Raw XML preview:', xmlText.substring(0, 300));
 
-    // ── Parse XML manually ──
     const parser = new DOMParser();
-    const xml = parser.parseFromString(xmlText, 'text/xml');
+    const xml = parser.parseFromString(xmlText, 'application/xml');
 
-    const parseError = xml.querySelector('parsererror');
-    if (parseError) throw new Error('Failed to parse BFMTV RSS feed.');
+    if (xml.querySelector('parsererror')) {
+      throw new Error('XML parse failed — BFMTV feed may have changed.');
+    }
 
-    const items = Array.from(xml.querySelectorAll('item'));
-    if (items.length === 0) throw new Error('No articles found in BFMTV RSS.');
+    const items = Array.from(xml.getElementsByTagName('item'));
+    console.log('Items found:', items.length);
 
-    // ── Extract full details from each item ──
+    if (items.length === 0) throw new Error('No articles in BFMTV RSS feed.');
+
     articles = items.slice(0, 9).map(item => {
-      // Get full content (tries multiple RSS fields)
-      const content =
-        item.querySelector('encoded')?.textContent ||         // <content:encoded>
-        item.querySelector('description')?.textContent || ''; // fallback
+      const getText = (tag) =>
+        item.getElementsByTagName(tag)[0]?.textContent?.trim() || '';
 
-      // Get image from media:content or enclosure or inside content
-      const mediaUrl =
-        item.querySelector('content')?.getAttribute('url') ||  // <media:content>
-        item.querySelector('enclosure')?.getAttribute('url') || // <enclosure>
-        extractImgFromHTML(content) ||                          // img inside content
+      const mediaContent = item.getElementsByTagName('media:content')[0];
+      const enclosure    = item.getElementsByTagName('enclosure')[0];
+      const description  = getText('description');
+
+      const image =
+        mediaContent?.getAttribute('url') ||
+        enclosure?.getAttribute('url')    ||
+        extractImgFromHTML(description)   ||
         null;
 
+      const contentEncoded = item.getElementsByTagName('content:encoded')[0];
+      const content = contentEncoded?.textContent?.trim() || description;
+
       return {
-        title:       item.querySelector('title')?.textContent?.trim() || '',
-        description: item.querySelector('description')?.textContent?.trim() || '',
+        title:       getText('title'),
+        description: description,
         content:     content,
-        url:         item.querySelector('link')?.textContent?.trim() || '',
-        image:       mediaUrl,
-        publishedAt: item.querySelector('pubDate')?.textContent || new Date().toISOString(),
-        source: {
-          name: 'BFMTV',
-          url:  'https://www.bfmtv.com'
-        }
+        url:         getText('link'),
+        image:       image,
+        publishedAt: getText('pubDate') || new Date().toISOString(),
+        source: { name: 'BFMTV', url: 'https://www.bfmtv.com' }
       };
     });
 
+    console.log('First article:', articles[0]);
     renderNews(articles);
 
   } catch (e) {
     showErr('Load Fail: ' + e.message);
-    console.error("BFMTV RSS Error:", e);
+    console.error('BFMTV RSS Error:', e);
   } finally {
     btn.disabled = false; btn.classList.remove('loading');
   }
@@ -136,7 +136,7 @@ function stripHTML(html) {
   return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-// ── Time ago helper (unchanged) ──
+// ── Time ago helper ──
 function ago(d) {
   const s = (Date.now() - new Date(d)) / 1000;
   if (s < 60) return 'Just now';
@@ -144,6 +144,8 @@ function ago(d) {
   if (s < 86400) return `${Math.floor(s/3600)}h ago`;
   return `${Math.floor(s/86400)}d ago`;
 }
+
+// ── RENDER NEWS ──
 function renderNews(arts) {
   document.getElementById('newsLabel').style.display = 'flex';
   const c = document.getElementById('newsContainer');
@@ -154,7 +156,9 @@ function renderNews(arts) {
     card.className = 'news-card';
     card.innerHTML = `
       <div class="card-img">
-        ${a.image ? `<img src="${a.image}" alt="" onerror="this.parentElement.innerHTML='🗼'"><div class="card-img-fade"></div>` : '🗼'}
+        ${a.image
+          ? `<img src="${a.image}" alt="" onerror="this.parentElement.innerHTML='🗼'"><div class="card-img-fade"></div>`
+          : '🗼'}
       </div>
       <div class="card-body">
         <div class="card-meta">
@@ -176,11 +180,10 @@ function renderNews(arts) {
   c.appendChild(g);
 }
 
-
-// ── STEP 1: STYLE COMPOSITION RULES ─────────────────────────────
+// ── STYLE COMPOSITION RULES ──
 const styleInstructions = {
   poll: `
-COMPOSITION — “POLL DEBATE” STYLE (your main viral style):
+COMPOSITION — "POLL DEBATE" STYLE (your main viral style):
 - Portrait 4:5 ratio
 - TOP 55%: Main dramatic scene. Politician figure large on LEFT foreground (waist up), real crisis scene on RIGHT background
 - BOTTOM 45%: Must fade to solid near-black — empty zone for text/poll graphics overlay
@@ -188,25 +191,25 @@ COMPOSITION — “POLL DEBATE” STYLE (your main viral style):
 - Background RIGHT: the actual real-world scene from the news (protest, parliament, housing, border, street)
 - Lighting: dramatic cinematic rim light on figure, moody overcast or golden hour background
 - Color grade: dark, high contrast, slightly desaturated, French political tones (deep blue/red)`,
-  
+
   shock: `
-COMPOSITION — “SHOCK & IMPACT” STYLE:
+COMPOSITION — "SHOCK & IMPACT" STYLE:
 - Full frame dramatic wide establishing shot
 - BOTTOM 40% fades to solid dark for text overlay
 - The SCENE is the subject — no single dominant person
 - Could be: stormy sky over Paris, massive protest crowd, empty Palais Bourbon at night
 - Color grade: dark, ominous, high contrast, cold tones`,
-  
+
   split: `
-COMPOSITION — “SPLIT COMPARISON” STYLE:
+COMPOSITION — "SPLIT COMPARISON" STYLE:
 - Frame split diagonally as if physically torn
 - LEFT HALF: warm golden tones — prosperity, traditional France, café, family, Eiffel Tower
 - RIGHT HALF: cold gray/blue — poverty, urban tension, crowded HLM buildings, grey skies
 - French tricolor flag tears dramatically through the diagonal split center
 - BOTTOM 30%: solid dark gradient for text overlay`,
-  
+
   portrait: `
-COMPOSITION — “POLITICAL PORTRAIT” STYLE:
+COMPOSITION — "POLITICAL PORTRAIT" STYLE:
 - Tight 3/4 angle portrait filling LEFT 60% of frame from chest up
 - Subject looking slightly off-camera, intense expression
 - RIGHT side: blurred parliament, protest, or relevant political background
@@ -214,7 +217,7 @@ COMPOSITION — “POLITICAL PORTRAIT” STYLE:
 - Dramatic side rim lighting, dark moody background`
 };
 
-// ── STEP 2: FETCH FULL ARTICLE TEXT ─────────────────────────────
+// ── FETCH FULL ARTICLE ──
 async function fetchFullArticle(url) {
   if (!url) return null;
 
@@ -232,7 +235,6 @@ async function fetchFullArticle(url) {
       const html = data.contents || data;
       if (typeof html !== 'string') continue;
 
-      // Strip HTML tags and extract readable text
       const text = html
         .replace(/<script[\s\S]*?<\/script>/gi, '')
         .replace(/<style[\s\S]*?<\/style>/gi, '')
@@ -248,65 +250,47 @@ async function fetchFullArticle(url) {
         .replace(/&quot;/g, '"')
         .trim();
 
-      // Return first 3000 chars — enough for Gemini context, not too long
-      if (text.length > 200) {
-        return text.slice(0, 3000);
-      }
+      if (text.length > 200) return text.slice(0, 3000);
     } catch (e) {
-      continue; // try next proxy
+      continue;
     }
   }
-  return null; // both proxies failed — fall back to title+description only
+  return null;
 }
 
-// ── BRIDGE FUNCTION FOR BUTTON CLICK ──
+// ── GENERATE (BUTTON CLICK) ──
 async function generate(index) {
-  // 1. Get the target article from your global array
   const article = articles[index];
-  if (!article) {
-    showErr('Article data missing.');
-    return;
-  }
-  
-  // 2. Set the global 'current' variable so regenerate() works later
+  if (!article) { showErr('Article data missing.'); return; }
+
   current = article;
-  
-  // 3. UI Feedback: Change button state to loading
+
   const btn = document.getElementById(`gb${index}`);
   let oldHtml = '';
   if (btn) {
     oldHtml = btn.innerHTML;
     btn.disabled = true;
     btn.classList.add('loading');
-    // If your CSS doesn't automatically show mini-spin on .loading, force it:
     const label = btn.querySelector('.gb-label');
     if (label) label.textContent = 'Generating with Gemini...';
   }
-  
+
   hideErr();
-  
+
   try {
-    // 4. Run the main Gemini logic using the globally active style variable
     lastResult = await callGemini(article, style);
-    
-    // 5. Send data to your modal updater
     fillModal(article, lastResult);
-    
-    // 6. Open your modal (assuming you have a openModal function in your UI)
     if (typeof openModal === 'function') {
       openModal();
     } else {
-      // Fallback if your layout uses a class toggle on a modal container element
       const modal = document.getElementById('modal') || document.getElementById('resultModal');
       if (modal) modal.classList.add('open');
     }
-    
     toast('Viral prompt ready!');
   } catch (e) {
     showErr('Generation Failed: ' + e.message);
-    console.error("Gemini Generation Error:", e);
+    console.error('Gemini Generation Error:', e);
   } finally {
-    // 7. Restore button state
     if (btn) {
       btn.disabled = false;
       btn.classList.remove('loading');
@@ -314,23 +298,30 @@ async function generate(index) {
     }
   }
 }
-// ── STEP 3: MAIN GEMINI CALL ─────────────────────────────────────
+
+// ── CALL GEMINI ──
 async function callGemini(article, st) {
-  // 1. Resolve the selected style instructions from your configuration object
+  if (!gm()) { showErr('Please enter your Gemini API key first.'); if (!panelOpen) togglePanel(); return; }
+
   const imgStyle = styleInstructions[st] || styleInstructions.poll;
 
   let fullText = null;
-  try {
-    fullText = await fetchFullArticle(article.url);
-  } catch(e) {
-    fullText = null;
-  }
+  try { fullText = await fetchFullArticle(article.url); } catch(e) { fullText = null; }
 
   const articleContext = fullText
-    ? ` ARTICLE TITLE: ${article.title} SOURCE: ${article.source?.name || 'French press'} PUBLISHED: ${article.publishedAt || 'Recent'} FULL ARTICLE TEXT (use this for all details — names, facts, numbers, quotes): """ ${fullText} """`.trim()
-    : ` ARTICLE TITLE: ${article.title} SOURCE: ${article.source?.name || 'French press'} PUBLISHED: ${article.publishedAt || 'Recent'} DESCRIPTION: ${article.description || 'No description available'} NOTE: Only title and description available. Extract maximum detail from these.`.trim();
+    ? `ARTICLE TITLE: ${article.title}
+SOURCE: ${article.source?.name || 'French press'}
+PUBLISHED: ${article.publishedAt || 'Recent'}
+FULL ARTICLE TEXT (use this for all details — names, facts, numbers, quotes):
+"""
+${fullText}
+"""`.trim()
+    : `ARTICLE TITLE: ${article.title}
+SOURCE: ${article.source?.name || 'French press'}
+PUBLISHED: ${article.publishedAt || 'Recent'}
+DESCRIPTION: ${article.description || 'No description available'}
+NOTE: Only title and description available. Extract maximum detail from these.`.trim();
 
-  // 2. Build the updated, adaptive master prompt
   const masterPrompt = `
 You are the lead visual content strategist for a viral French political Facebook page with 500,000+ followers.
 Your graphics use dramatic, gritty AI-generated images with bold French text overlays.
@@ -358,8 +349,8 @@ You must write a highly detailed image generation prompt following these precise
    - If "Emmanuel Macron" is in the text: Describe him as "The real-world French President Emmanuel Macron. A slim man in his late 40s, short brown hair neatly combed back, clean-shaven, sharp facial features, wearing a dark navy bespoke tailored suit with a white shirt and slim tie, looking intensely forward with a furrowed brow."
    - If "Jean-Luc Mélenchon" is in the text: Describe him as "An older heavy-set French man, late 60s, thick grey-white hair, glasses, wearing a dark coat, hand on chin in deep contemplation."
    - If NO specific French politician is named in the news text, dynamically evaluate the theme and force one of these two real public figures:
-     • For International Affairs, Global Reports, Diplomacy, or Macro-Economics: Force the image to depict Emmanuel Macron. Describe him as: "The real-world French President Emmanuel Macron. A slim man in his late 40s, short brown hair neatly combed back, clean-shaven, sharp facial features, wearing a dark navy bespoke tailored suit with a white shirt and slim tie, looking intensely forward with a furrowed brow, a look of deep concern."
-     • For Security, Justice, Immigration, Domestic Scandals, or Social Crises: Force the image to depict Gabriel Attal. Describe him as: "The real-world French politician Gabriel Attal. A slim 37-year-old man, sharp youthful facial features, short styled dark brown hair, completely clean-shaven, intense deep-set eyes, wearing a crisp modern dark navy tailored suit with a white shirt, standing in a posture of deep concern and contemplation."
+     • For International Affairs, Global Reports, Diplomacy, or Macro-Economics: Force Emmanuel Macron. Describe him as: "The real-world French President Emmanuel Macron. A slim man in his late 40s, short brown hair neatly combed back, clean-shaven, sharp facial features, wearing a dark navy bespoke tailored suit with a white shirt and slim tie, looking intensely forward with a furrowed brow, a look of deep concern."
+     • For Security, Justice, Immigration, Domestic Scandals, or Social Crises: Force Gabriel Attal. Describe him as: "The real-world French politician Gabriel Attal. A slim 37-year-old man, sharp youthful facial features, short styled dark brown hair, completely clean-shaven, intense deep-set eyes, wearing a crisp modern dark navy tailored suit with a white shirt, standing in a posture of deep concern and contemplation."
 
 2. DETAILED REALISTIC BACKGROUND ENVIRONMENT: Never use abstract rooms or simple walls. Describe a specific, gritty real-world environment tied directly to the structural issue in the news:
    - Schools / Extra-curricular / Public Services: "In the background, a dimly lit Paris public municipal school corridor, institutional walls with weathered plaster and slightly peeled beige paint, bulletin boards with overlapping messy flyers, a localized French text sign reading 'ÉCOLE MUNICIPALE', cluttered child lockers, cold industrial lighting."
@@ -368,42 +359,42 @@ You must write a highly detailed image generation prompt following these precise
 
 3. EXPLICIT FRENCH EMBLEMS: Explicitly instruct the generator to include a crisp French national flag (tricolor drape) somewhere clear in the background architectural scenery.
 
-4. ADAPTIVE TEXT OVERLAY PROTECTION ZONE (READ CAREFULLY):
-   - If the active style block above requires a "Poll", append this exact literal string: "the lower 45% of the frame smoothly fades to a completely solid, uniform near-black (#0a0a0a) gradient field that is entirely clear of details, objects, or scenery, reserved exclusively for graphic text banners and poll overlay templates."
-   - If the active style block does NOT require a poll (e.g., Shock & Impact, Split Comparison, Portrait), append this exact literal string instead: "the lower 30% of the frame smoothly transitions to a clean, solid dark near-black (#0a0a0a) gradient field completely free of background details to act as a clear canvas for a standalone headline overlay text."
+4. ADAPTIVE TEXT OVERLAY PROTECTION ZONE:
+   - If the active style block above requires a "Poll", append: "the lower 45% of the frame smoothly fades to a completely solid, uniform near-black (#0a0a0a) gradient field that is entirely clear of details, objects, or scenery, reserved exclusively for graphic text banners and poll overlay templates."
+   - If NOT a poll style, append: "the lower 30% of the frame smoothly transitions to a clean, solid dark near-black (#0a0a0a) gradient field completely free of background details to act as a clear canvas for a standalone headline overlay text."
 
-5. CAMERA TECH SPECS: Conclude the prompt string exactly with: "photojournalism style, cinematic side rim lighting, sharp focus on subject foreground, volumetric air particles, high-contrast desaturated color grading, shot on Canon EOS R5, 35mm lens, f/2.8, 8k resolution, hyper-realistic --ar 4:5 --style raw".
+5. CAMERA TECH SPECS: Conclude with: "photojournalism style, cinematic side rim lighting, sharp focus on subject foreground, volumetric air particles, high-contrast desaturated color grading, shot on Canon EOS R5, 35mm lens, f/2.8, 8k resolution, hyper-realistic --ar 4:5 --style raw".
 
 ━━━ STRUCTURED OUTPUT FORMAT ━━━
-Respond with ONLY these fields in order. Do not include any markdown headings like '###' or '**'. No explanatory talk.
-CRITICAL FORMATTING INSTRUCTION: If the active style instructions state "No poll" or "DO NOT generate poll questions", you MUST still output the POLL_QUESTION, NON_LABEL, and OUI_LABEL lines, but fill them exactly with the word: NONE.
+Respond with ONLY these fields in order. No markdown headings or bold symbols.
+CRITICAL: If the active style has no poll, fill POLL_QUESTION, NON_LABEL, OUI_LABEL with: NONE
 
 IMAGE_PROMPT:
-[Provide a dense 5-7 sentence English generation prompt blending the specific named or forced real politician's physical likeness, posture, the gritty contextual background scene, the adaptive text protection zone sentence, and camera parameters.]
+[Dense 5-7 sentence English generation prompt.]
 
 TITRE:
-[Main provocative French debate or shocking headline statement. ALL CAPS. Max 10 words.]
+[Main provocative French headline. ALL CAPS. Max 10 words.]
 
 HIGHLIGHT_PHRASE:
-[The 2-4 most shocking words directly extracted from your TITRE field.]
+[The 2-4 most shocking words from TITRE.]
 
 SOUS_TITRE:
-[One specific metric, department, or statistic line in French. Max 10 words. If none, write: NONE]
+[One specific metric or statistic in French. Max 10 words. If none: NONE]
 
 POLL_QUESTION:
-[The binary poll debate question in French. ALL CAPS. Ends with ' ?'. Max 12 words. If the selected layout style has no poll, write: NONE]
+[Binary poll debate question in French. ALL CAPS. Ends with ' ?'. Max 12 words. If no poll: NONE]
 
 NON_LABEL:
-[What voting NON👍 stands for. 3-5 French words. If the selected layout style has no poll, write: NONE]
+[What NON👍 stands for. 3-5 French words. If no poll: NONE]
 
 OUI_LABEL:
-[What voting OUI❤️ stands for. 3-5 French words. If the selected layout style has no poll, write: NONE]
+[What OUI❤️ stands for. 3-5 French words. If no poll: NONE]
 
 FACEBOOK_CAPTION:
-[The complete French social media caption post structure, beginning with an urgent headline hook referencing the politician by name, 2 sentences of specific event details from the title, a provocative question, and the standard '👉 Donnez votre avis...' call-to-action with topic hashtags.]
+[Complete French social media caption: urgent headline hook with politician name, 2 sentences of event details, provocative question, '👉 Donnez votre avis...' CTA with hashtags.]
 
 IMAGE_NEGATIVE:
-[Exclusion parameters separated by commas: english text on walls, cartoon style, duplicate heads, happy smiling faces, bright cheer colors.]
+[Exclusion parameters: english text on walls, cartoon style, duplicate heads, happy smiling faces, bright cheer colors.]
 `.trim();
 
   const res = await fetch(
@@ -413,11 +404,11 @@ IMAGE_NEGATIVE:
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: masterPrompt }] }],
-        generationConfig: { 
-          temperature: 0.70, // Slightly dialed down to maximize alignment with layout rules
-          maxOutputTokens: 4500, 
-          topK: 40, 
-          topP: 0.95 
+        generationConfig: {
+          temperature: 0.70,
+          maxOutputTokens: 4500,
+          topK: 40,
+          topP: 0.95
         }
       })
     }
@@ -435,63 +426,36 @@ IMAGE_NEGATIVE:
   return parse(rawText);
 }
 
-// ── TAB SWITCHER SYSTEM ──
-// ── TAILORED SWITCH TAB MECHANISM ──
+// ── TAB SWITCHER ──
 function switchTab(tabIndex) {
-  // 1. Cycle through button tabs (.tab)
-  const tabs = document.querySelectorAll('.tabs .tab');
-  tabs.forEach((tab, idx) => {
-    if (idx === tabIndex) {
-      tab.classList.add('active');
-    } else {
-      tab.classList.remove('active');
-    }
+  document.querySelectorAll('.tabs .tab').forEach((tab, idx) => {
+    tab.classList.toggle('active', idx === tabIndex);
   });
-
-  // 2. Cycle through content panels (.tab-panel)
-  const panels = document.querySelectorAll('.modal-body .tab-panel');
-  panels.forEach((panel, idx) => {
-    if (idx === tabIndex) {
-      panel.classList.add('active');
-    } else {
-      panel.classList.remove('active');
-    }
+  document.querySelectorAll('.modal-body .tab-panel').forEach((panel, idx) => {
+    panel.classList.toggle('active', idx === tabIndex);
   });
 }
 
-// ── CUSTOM MODAL OVERLAY CONTROLS ──
+// ── MODAL CONTROLS ──
 function openModal() {
   const overlay = document.getElementById('modalOverlay');
-  if (overlay) {
-    overlay.classList.add('open');
-    // Force active visual state if your CSS depends on display transitions
-    overlay.style.display = 'flex'; 
-  }
+  if (overlay) { overlay.classList.add('open'); overlay.style.display = 'flex'; }
 }
 
 function closeModal() {
   const overlay = document.getElementById('modalOverlay');
-  if (overlay) {
-    overlay.classList.remove('open');
-    overlay.style.display = 'none';
-  }
+  if (overlay) { overlay.classList.remove('open'); overlay.style.display = 'none'; }
 }
 
-// Handles clicking outside the white box to close the window smoothly
 function bgClose(event) {
-  if (event.target.id === 'modalOverlay') {
-    closeModal();
-  }
+  if (event.target.id === 'modalOverlay') closeModal();
 }
 
-// ── STEP 4: ROBUST PARSER ────────────────────────────────────────
-// ── BULLETPROOF RECOVERY PARSER ──
+// ── PARSER ──
 function parse(text) {
-  console.log("RAW GEMINI OUTPUT FOR DEBUGGING:\n", text); // Helpful for checking F12 console
+  console.log('RAW GEMINI OUTPUT:\n', text);
 
-  // Helper function that extracts text between key markers even if they contain markdown symbols
   function getField(fieldName) {
-    // This regex dynamically strips away common AI artifacts like **, ###, or trailing spaces
     const pattern = new RegExp(
       '(?:^|\\n)[#\\s\\*]*' + fieldName + '[#\\s\\*]*[:\\-]?\\s*([\\s\\S]*?)(?=\\n[#\\s\\*]*[A-Z_]{4,}[#\\s\\*]*[:\\-]?|$)',
       'i'
@@ -500,19 +464,16 @@ function parse(text) {
     return match ? match[1].trim() : '';
   }
 
-  // Extract each field safely
   let imagePrompt     = getField('IMAGE_PROMPT');
-  const titre           = getField('TITRE');
+  const titre         = getField('TITRE');
   const highlightPhrase = getField('HIGHLIGHT_PHRASE');
-  const sousTitre       = getField('SOUS_TITRE');
-  const pollQuestion    = getField('POLL_QUESTION');
-  const nonLabel        = getField('NON_LABEL');
-  const ouiLabel        = getField('OUI_LABEL');
-  const caption         = getField('FACEBOOK_CAPTION');
-  const negative        = getField('IMAGE_NEGATIVE');
+  const sousTitre     = getField('SOUS_TITRE');
+  const pollQuestion  = getField('POLL_QUESTION');
+  const nonLabel      = getField('NON_LABEL');
+  const ouiLabel      = getField('OUI_LABEL');
+  const caption       = getField('FACEBOOK_CAPTION');
+  const negative      = getField('IMAGE_NEGATIVE');
 
-  // Fallback safety net: If the strict parser failed completely due to erratic AI formatting,
-  // we do a brute-force split to at least show the prompt text so your site never stays blank.
   if (!imagePrompt && text.toUpperCase().includes('IMAGE_PROMPT')) {
     const fallbackParts = text.split(/IMAGE_PROMPT\s*:/i);
     if (fallbackParts[1]) {
@@ -520,12 +481,10 @@ function parse(text) {
     }
   }
 
-  // Combine image prompt with negative parameters cleanly
-  const fullImagePrompt = negative && !imagePrompt.toUpperCase().includes('NEGATIVE') 
-    ? `${imagePrompt}\n\n[NEGATIVE PROMPT]: ${negative}` 
+  const fullImagePrompt = negative && !imagePrompt.toUpperCase().includes('NEGATIVE')
+    ? `${imagePrompt}\n\n[NEGATIVE PROMPT]: ${negative}`
     : imagePrompt;
 
-  // Reconstruct your beautiful template for the French Text tab view
   const frText = `
 MAIN TITLE — bold white ALL CAPS large font:
 ${titre || '(No title generated)'}
@@ -547,21 +506,21 @@ RIGHT SIDE — OUI ❤️ (red):
 ${ouiLabel || 'OUI'}
 `.trim();
 
-  return { 
-    imagePrompt: fullImagePrompt || text.slice(0, 500), // Ultimate absolute fallback
-    frText, 
-    titre, 
-    highlightPhrase, 
-    sousTitre, 
-    pollQuestion, 
-    nonLabel, 
-    ouiLabel, 
-    caption: caption || text, 
-    negative 
+  return {
+    imagePrompt: fullImagePrompt || text.slice(0, 500),
+    frText,
+    titre,
+    highlightPhrase,
+    sousTitre,
+    pollQuestion,
+    nonLabel,
+    ouiLabel,
+    caption: caption || text,
+    negative
   };
 }
 
-// ── STEP 5: UPDATED fillModal() ──────────────────────────────────
+// ── FILL MODAL ──
 function fillModal(article, r) {
   document.getElementById('modalRef').textContent = article.title;
   document.getElementById('pImage').textContent = r.imagePrompt;
@@ -584,6 +543,7 @@ function fillModal(article, r) {
   switchTab(0);
 }
 
+// ── REGENERATE ──
 async function regenerate() {
   if (!gm() || !current) return;
   const btn = document.getElementById('regenBtn');
@@ -619,8 +579,14 @@ function copyAll() {
   navigator.clipboard.writeText(all).then(() => toast('Everything copied!')).catch(() => {});
 }
 
-function showErr(m) { document.getElementById('errorMsg').textContent = m; document.getElementById('errorBar').classList.add('show'); }
-function hideErr() { document.getElementById('errorBar').classList.remove('show'); }
+// ── UTILS ──
+function showErr(m) {
+  document.getElementById('errorMsg').textContent = m;
+  document.getElementById('errorBar').classList.add('show');
+}
+function hideErr() {
+  document.getElementById('errorBar').classList.remove('show');
+}
 function toast(m) {
   const t = document.getElementById('toast');
   t.textContent = '✓ ' + m; t.classList.add('show');
