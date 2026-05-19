@@ -50,7 +50,7 @@ function setStyle(card, s) {
   style = s;
 }
 
-// ── FETCH NEWS (BFMTV Direct RSS) ──
+// ── FETCH NEWS (BFMTV Direct RSS via CORS Proxy) ──
 async function fetchNews() {
   const btn = document.getElementById('fetchBtn');
   btn.disabled = true; btn.classList.add('loading');
@@ -67,33 +67,53 @@ async function fetchNews() {
 
     const rssUrl = catRSSMap[cat] || catRSSMap['general'];
 
-    // rss2json converts RSS to clean JSON — free, no key needed
-    const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}&api_key=&count=9`;
+    // Fetch raw RSS XML via CORS proxy
+    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(rssUrl)}`;
 
     console.log(`Fetching BFMTV RSS [${cat}]...`);
-    const res = await fetch(apiUrl);
+    const res = await fetch(proxyUrl);
 
-    if (!res.ok) throw new Error(`BFMTV RSS fetch error: ${res.status}`);
+    if (!res.ok) throw new Error(`RSS fetch error: ${res.status}`);
 
-    const data = await res.json();
+    const xmlText = await res.text();
 
-    if (data.status !== 'ok' || !data.items || data.items.length === 0) {
-      throw new Error('No articles found from BFMTV for this category.');
-    }
+    // ── Parse XML manually ──
+    const parser = new DOMParser();
+    const xml = parser.parseFromString(xmlText, 'text/xml');
 
-    // ── Map RSS fields to your existing article format ──
-    articles = data.items.map(item => ({
-      title:       item.title        || '',
-      description: item.description  || '',
-      content:     item.content      || item.description || '', // full HTML content
-      url:         item.link         || '',
-      image:       item.thumbnail    || item.enclosure?.link || null,
-      publishedAt: item.pubDate      || new Date().toISOString(),
-      source: {
-        name: 'BFMTV',
-        url:  'https://www.bfmtv.com'
-      }
-    }));
+    const parseError = xml.querySelector('parsererror');
+    if (parseError) throw new Error('Failed to parse BFMTV RSS feed.');
+
+    const items = Array.from(xml.querySelectorAll('item'));
+    if (items.length === 0) throw new Error('No articles found in BFMTV RSS.');
+
+    // ── Extract full details from each item ──
+    articles = items.slice(0, 9).map(item => {
+      // Get full content (tries multiple RSS fields)
+      const content =
+        item.querySelector('encoded')?.textContent ||         // <content:encoded>
+        item.querySelector('description')?.textContent || ''; // fallback
+
+      // Get image from media:content or enclosure or inside content
+      const mediaUrl =
+        item.querySelector('content')?.getAttribute('url') ||  // <media:content>
+        item.querySelector('enclosure')?.getAttribute('url') || // <enclosure>
+        extractImgFromHTML(content) ||                          // img inside content
+        null;
+
+      return {
+        title:       item.querySelector('title')?.textContent?.trim() || '',
+        description: item.querySelector('description')?.textContent?.trim() || '',
+        content:     content,
+        url:         item.querySelector('link')?.textContent?.trim() || '',
+        image:       mediaUrl,
+        publishedAt: item.querySelector('pubDate')?.textContent || new Date().toISOString(),
+        source: {
+          name: 'BFMTV',
+          url:  'https://www.bfmtv.com'
+        }
+      };
+    });
 
     renderNews(articles);
 
@@ -105,6 +125,25 @@ async function fetchNews() {
   }
 }
 
+// ── Extract first image URL from HTML string ──
+function extractImgFromHTML(html) {
+  const match = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+  return match ? match[1] : null;
+}
+
+// ── Strip HTML tags for Gemini ──
+function stripHTML(html) {
+  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+// ── Time ago helper (unchanged) ──
+function ago(d) {
+  const s = (Date.now() - new Date(d)) / 1000;
+  if (s < 60) return 'Just now';
+  if (s < 3600) return `${Math.floor(s/60)}m ago`;
+  if (s < 86400) return `${Math.floor(s/3600)}h ago`;
+  return `${Math.floor(s/86400)}d ago`;
+}
 
 // ── STEP 1: STYLE COMPOSITION RULES ─────────────────────────────
 const styleInstructions = {
