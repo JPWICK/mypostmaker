@@ -286,63 +286,70 @@ async function callGemini(article, st) {
     ? ` ARTICLE TITLE: ${article.title} SOURCE: ${article.source?.name || 'French press'} PUBLISHED: ${article.publishedAt || 'Recent'} FULL ARTICLE TEXT (use this for all details — names, facts, numbers, quotes): """ ${fullText} """`.trim()
     : ` ARTICLE TITLE: ${article.title} SOURCE: ${article.source?.name || 'French press'} PUBLISHED: ${article.publishedAt || 'Recent'} DESCRIPTION: ${article.description || 'No description available'} NOTE: Only title and description available. Extract maximum detail from these.`.trim();
 
-  const masterPrompt = `
+const masterPrompt = `
 You are the lead visual content strategist for a viral French political Facebook page with 500,000+ followers.
-Your posts use dramatic AI-generated images with bold French text overlays and NON👍/OUI❤️ polls.
-Every post must feel urgent, emotionally charged, and debate-worthy.
+Your posts use dramatic, gritty AI-generated images with bold French text overlays and clear NON👍/OUI❤️ poll cards at the bottom.
+Every output must feel incredibly urgent, emotionally volatile, and debate-worthy.
 
-━━━ THE NEWS ARTICLE ━━━
+━━━ THE INPUT NEWS DATA ━━━
 ${articleContext}
 
-━━━ YOUR TASK ━━━
-Read the article carefully and extract:
-• POLITICIAN NAMES: Full names and roles of every political figure mentioned
-• KEY FACTS: Specific numbers, dates, statistics, policy names, locations
-• CORE CONFLICT: What is the central controversy or debate?
-• EMOTIONAL ANGLE: What will make French citizens angry, worried, or passionate?
-• VISUAL SCENE: What real place or situation best represents this news visually?
+━━━ YOUR EXTRACTION TASK ━━━
+Carefully read the headline and description above to isolate:
+- MAIN FRENCH POLITICIAN: The specific public figure named (e.g., Emmanuel Grégoire, Emmanuel Macron, Jean-Luc Mélenchon).
+- REAL CONFLICT DETAILS: Identify the specific metric or system failure (e.g., 78 animateurs suspendus, 23,000 dossiers, 31 suspicions de violences sexuelles, grève des syndicats).
+- LOCAL BACKDROP: The concrete geographic location or infrastructure in France linked to the crisis.
 
-━━━ IMAGE COMPOSITION RULES ━━━
-${imgStyle}
+━━━ STAGE-DIRECTION & IMAGE PROMPT GENERATION RULES ━━━
+You must write a highly detailed image generation prompt following these precise constraints:
 
-━━━ IMAGE PROMPT RULES (follow ALL of these) ━━━
-1. REAL POLITICIAN RESEMBLANCE: If article names a specific politician, describe a figure that STRONGLY RESEMBLES them...
-2. BACKGROUND SCENE: Show the EXACT real-world situation from the news...
-3. FRENCH IDENTITY ELEMENTS: Always include at least ONE: French tricolor flag, Palais Bourbon exterior...
-4. TEXT SPACE: State clearly: "the lower 45% of the image fades smoothly to solid near-black (#0a0a0a)..."
-5. TECHNICAL TAG: End with exactly: shot on Canon EOS R5, 35mm lens, f/2.8...
+1. REAL POLITICIAN LIKENESS & POSTURE: Identify the primary French figure mentioned in the article title. You must explicitly name them and physically map their likeness for the image generator:
+   - If "Emmanuel Grégoire" is in the text: Describe him as "A distinguished French politician, slim build, early 50s, short thinning receding grey-brown hair, wearing subtle glasses, sharp analytical eyes, looking intensely slightly off-camera to the right with a contemplative hand-on-chin posture, wearing an official French tricolor mayoral/deputy sash (blue, white, red) over a dark tailored suit jacket."
+   - If "Emmanuel Macron": Describe him as "A slim French man, late 40s, short brown hair neatly combed, clean-shaven, sharp dark navy suit, intense look."
+   - If "Jean-Luc Mélenchon": Describe him as "An older heavy-set French man, late 60s, thick grey-white hair, glasses, wearing a dark coat, hand on chin in deep contemplation."
+   - For any other figure or a general placeholder: Describe a "distinguished 50-year-old French political representative, dark suit, immaculate grooming, wearing an official tricolor sash".
 
-━━━ OUTPUT FORMAT ━━━
-Respond with ONLY these fields in order. No markdown. No extra text. No field explanations.
+2. DETAILED REALISTIC BACKGROUND ENVIRONMENT: Never use abstract rooms or simple walls. Describe a specific, gritty real-world environment tied directly to the structural issue in the news:
+   - Schools / Extra-curricular / Public Services: "In the right background, a dimly lit Paris public municipal school corridor, institutional walls with weathered plaster and slightly peeled beige paint, bulletin boards with overlapping messy flyers, a localized French text sign reading 'ÉCOLE MUNICIPALE', cluttered child lockers, cold industrial lighting."
+   - Strikes / Demonstrations / Manifestations: "In the background, crowded urban French streets, protest banners with bold hand-painted lettering, smoke flares filtering hazy sunlight, police barriers, angry trade union workers wearing high-visibility vests."
+   - Urban Crisis / Crime: "Broken cobblestone pavement, graffiti-covered concrete walls, makeshift banners, old Haussmann-style facades fading under grey overcast skies."
+
+3. EXPLICIT FRENCH EMBLEMS: Explicitly instruct the generator to include a crisp French national flag (tricolor drape) somewhere clear in the background architectural scenery.
+
+4. TEXT OVERLAY BUFFER ZONE: You must append this exact literal string to protect your layout elements from overlapping details: "the lower 45% of the frame smoothly fades to a completely solid, uniform near-black (#0a0a0a) gradient field that is entirely clear of details, objects, or scenery, reserved exclusively for graphic text banners and poll overlay templates."
+
+5. CAMERA TECH SPECS: Conclude the prompt string exactly with: "photojournalism style, cinematic side rim lighting, sharp focus on subject foreground, volumetric air particles, high-contrast desaturated color grading, shot on Canon EOS R5, 35mm lens, f/2.8, 8k resolution, hyper-realistic --ar 4:5 --style raw".
+
+━━━ STRUCTURED OUTPUT FORMAT ━━━
+Respond with ONLY these fields in order. Do not include any markdown headings like '###' or '**'. No explanatory talk.
 
 IMAGE_PROMPT:
-[5-7 sentence English image prompt following ALL 5 rules above.]
+[Provide a dense 5-7 sentence English generation prompt blending the specific named politician's physical likeness, posture, the gritty contextual background scene, the mandatory text protection zone sentence, and camera parameters.]
 
 TITRE:
-[Main French provocative debate question or statement. ALL CAPS. Max 10 words.]
+[Main provocative French debate statement. ALL CAPS. Max 10 words. Must reference the exact conflict, e.g., 'SÉCURITÉ DANS LES ÉCOLES : LA MAIRIE DE PARIS FAILLIT-ELLE ?']
 
 HIGHLIGHT_PHRASE:
-[The 2-5 most shocking words from TITRE.]
+[The 2-4 most shocking words directly extracted from your TITRE field.]
 
 SOUS_TITRE:
-[One specific French fact or stat from the article. Max 10 words. If none write: NONE]
+[One specific metric, department, or statistic line in French. Max 10 words. Example: '78 animateurs suspendus' or 'Alerte dans les écoles'. If none, write: NONE]
 
 POLL_QUESTION:
-[The binary debate question. French. ALL CAPS. Ends with " ?". Max 12 words.]
+[The binary poll debate question in French. ALL CAPS. Ends with ' ?'. Max 12 words.]
 
 NON_LABEL:
-[What voting NON👍 represents. 3-5 French words.]
+[What voting NON👍 stands for in this specific scenario. 3-5 French words.]
 
 OUI_LABEL:
-[What voting OUI❤️ represents. 3-5 French words.]
+[What voting OUI❤️ stands for in this specific scenario. 3-5 French words.]
 
 FACEBOOK_CAPTION:
-[Full French Facebook post structure]
+[The complete French social media caption post structure, beginning with an urgent headline hook referencing the politician by name, 2 sentences of specific event details from the title, a provocative question, and the standard '👉 Donnez votre avis...' call-to-action with topic hashtags.]
 
 IMAGE_NEGATIVE:
-[5-8 comma-separated things to EXCLUDE]
+[Exclusion parameters separated by commas: english text on walls, cartoon style, duplicate heads, happy smiling faces, bright cheer colors.]
 `.trim();
-
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gm()}`,
     {
