@@ -355,15 +355,15 @@ IMAGE_NEGATIVE:
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: masterPrompt }] }],
-        generationConfig: {
-          temperature: 0.82,
-          maxOutputTokens: 1600,
-          topK: 40,
-          topP: 0.95
-        }
-      })
+body: JSON.stringify({
+  contents: [{ parts: [{ text: masterPrompt }] }],
+  generationConfig: { 
+    temperature: 0.75, 
+    maxOutputTokens: 2500, // Forces the API engine to give you a complete response stream
+    topK: 40, 
+    topP: 0.95 
+  }
+})
     }
   );
 
