@@ -309,22 +309,25 @@ Carefully read the headline and description above to isolate:
 ━━━ STAGE-DIRECTION & IMAGE PROMPT GENERATION RULES ━━━
 You must write a highly detailed image generation prompt following these precise constraints:
 
-1. REAL POLITICIAN LIKENESS & POSTURE: Identify the primary French figure mentioned in the article title. You must explicitly name them and physically map their likeness for the image generator:
+1. REAL POLITICIAN LIKENESS & POSTURE (INTELLIGENT FALLBACK):
+   Look at the input news data. You must explicitly name a real public figure and physically map their exact likeness for the image generator according to these conditions:
    - If "Emmanuel Grégoire" is in the text: Describe him as "A distinguished French politician, slim build, early 50s, short thinning receding grey-brown hair, wearing subtle glasses, sharp analytical eyes, looking intensely slightly off-camera to the right with a contemplative hand-on-chin posture, wearing an official French tricolor mayoral/deputy sash (blue, white, red) over a dark tailored suit jacket."
-   - If "Emmanuel Macron": Describe him as "A slim French man, late 40s, short brown hair neatly combed, clean-shaven, sharp dark navy suit, intense look."
-   - If "Jean-Luc Mélenchon": Describe him as "An older heavy-set French man, late 60s, thick grey-white hair, glasses, wearing a dark coat, hand on chin in deep contemplation."
-   - For any other figure or a general placeholder: Describe a "distinguished 50-year-old French political representative, dark suit, immaculate grooming, wearing an official tricolor sash".
+   - If "Emmanuel Macron" is in the text: Describe him as "The real-world French President Emmanuel Macron. A slim man in his late 40s, short brown hair neatly combed back, clean-shaven, sharp facial features, wearing a dark navy bespoke tailored suit with a white shirt and slim tie, looking intensely forward with a furrowed brow."
+   - If "Jean-Luc Mélenchon" is in the text: Describe him as "An older heavy-set French man, late 60s, thick grey-white hair, glasses, wearing a dark coat, hand on chin in deep contemplation."
+   - If NO specific French politician is named in the news text, dynamically evaluate the theme and force one of these two real public figures:
+     • For International Affairs, Global Reports, Diplomacy, or Macro-Economics: Force the image to depict Emmanuel Macron. Describe him as: "The real-world French President Emmanuel Macron. A slim man in his late 40s, short brown hair neatly combed back, clean-shaven, sharp facial features, wearing a dark navy bespoke tailored suit with a white shirt and slim tie, looking intensely forward with a furrowed brow, a look of deep concern."
+     • For Security, Justice, Immigration, Domestic Scandals, or Social Crises: Force the image to depict Gabriel Attal. Describe him as: "The real-world French politician Gabriel Attal. A slim 37-year-old man, sharp youthful facial features, short styled dark brown hair, completely clean-shaven, intense deep-set eyes, wearing a crisp modern dark navy tailored suit with a white shirt, standing in a posture of deep concern and contemplation."
 
 2. DETAILED REALISTIC BACKGROUND ENVIRONMENT: Never use abstract rooms or simple walls. Describe a specific, gritty real-world environment tied directly to the structural issue in the news:
    - Schools / Extra-curricular / Public Services: "In the background, a dimly lit Paris public municipal school corridor, institutional walls with weathered plaster and slightly peeled beige paint, bulletin boards with overlapping messy flyers, a localized French text sign reading 'ÉCOLE MUNICIPALE', cluttered child lockers, cold industrial lighting."
    - Strikes / Demonstrations / Manifestations: "In the background, crowded urban French streets, protest banners with bold hand-painted lettering, smoke flares filtering hazy sunlight, police barriers, angry trade union workers wearing high-visibility vests."
-   - Urban Crisis / Crime: "Broken cobblestone pavement, graffiti-covered concrete walls, makeshift banners, old Haussmann-style facades fading under grey overcast skies."
+   - Urban Crisis / Crime / Housing: "In the background, a crowded French HLM public housing project with rundown concrete facades, laundry hanging from balconies, broken cobblestone pavement, and grey overcast skies conveying a sense of structural neglect."
 
 3. EXPLICIT FRENCH EMBLEMS: Explicitly instruct the generator to include a crisp French national flag (tricolor drape) somewhere clear in the background architectural scenery.
 
 4. ADAPTIVE TEXT OVERLAY PROTECTION ZONE (READ CAREFULLY):
    - If the active style block above requires a "Poll", append this exact literal string: "the lower 45% of the frame smoothly fades to a completely solid, uniform near-black (#0a0a0a) gradient field that is entirely clear of details, objects, or scenery, reserved exclusively for graphic text banners and poll overlay templates."
-   - If the active style block does NOT require a poll (e.g., Shock & Impact, Portrait), append this exact literal string instead: "the lower 30% of the frame smoothly transitions to a clean, solid dark near-black (#0a0a0a) gradient field completely free of background details to act as a clear canvas for a standalone headline overlay text."
+   - If the active style block does NOT require a poll (e.g., Shock & Impact, Split Comparison, Portrait), append this exact literal string instead: "the lower 30% of the frame smoothly transitions to a clean, solid dark near-black (#0a0a0a) gradient field completely free of background details to act as a clear canvas for a standalone headline overlay text."
 
 5. CAMERA TECH SPECS: Conclude the prompt string exactly with: "photojournalism style, cinematic side rim lighting, sharp focus on subject foreground, volumetric air particles, high-contrast desaturated color grading, shot on Canon EOS R5, 35mm lens, f/2.8, 8k resolution, hyper-realistic --ar 4:5 --style raw".
 
@@ -333,7 +336,7 @@ Respond with ONLY these fields in order. Do not include any markdown headings li
 CRITICAL FORMATTING INSTRUCTION: If the active style instructions state "No poll" or "DO NOT generate poll questions", you MUST still output the POLL_QUESTION, NON_LABEL, and OUI_LABEL lines, but fill them exactly with the word: NONE.
 
 IMAGE_PROMPT:
-[Provide a dense 5-7 sentence English generation prompt blending the specific named politician's physical likeness, posture, the gritty contextual background scene, the adaptive text protection zone sentence, and camera parameters.]
+[Provide a dense 5-7 sentence English generation prompt blending the specific named or forced real politician's physical likeness, posture, the gritty contextual background scene, the adaptive text protection zone sentence, and camera parameters.]
 
 TITRE:
 [Main provocative French debate or shocking headline statement. ALL CAPS. Max 10 words.]
