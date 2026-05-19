@@ -67,7 +67,8 @@ async function fetchNews() {
     };
     const q = qMap[cat] || 'actualité';
     
-    const targetUrl = `https://gnews.io/api/v4/top-headlines?q=${encodeURIComponent(q)}&lang=fr&max=9&apikey=${gk()}`;
+    // const targetUrl = `https://gnews.io/api/v4/top-headlines?q=${encodeURIComponent(q)}&lang=fr&max=9&apikey=${gk()}`;
+    const targetUrl = `https://gnews.io/api/v4/top-headlines?q=${encodeURIComponent(q)}&lang=fr&country=fr&max=9&apikey=${gk()}`;
     const url = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
     
     console.log(`Fetching isolated news for [${cat}] via stable proxy...`);
