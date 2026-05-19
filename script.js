@@ -273,6 +273,7 @@ async function generate(index) {
 }
 // ── STEP 3: MAIN GEMINI CALL ─────────────────────────────────────
 async function callGemini(article, st) {
+  // 1. Resolve the selected style instructions from your configuration object
   const imgStyle = styleInstructions[st] || styleInstructions.poll;
 
   let fullText = null;
@@ -286,13 +287,18 @@ async function callGemini(article, st) {
     ? ` ARTICLE TITLE: ${article.title} SOURCE: ${article.source?.name || 'French press'} PUBLISHED: ${article.publishedAt || 'Recent'} FULL ARTICLE TEXT (use this for all details — names, facts, numbers, quotes): """ ${fullText} """`.trim()
     : ` ARTICLE TITLE: ${article.title} SOURCE: ${article.source?.name || 'French press'} PUBLISHED: ${article.publishedAt || 'Recent'} DESCRIPTION: ${article.description || 'No description available'} NOTE: Only title and description available. Extract maximum detail from these.`.trim();
 
-const masterPrompt = `
+  // 2. Build the updated, adaptive master prompt
+  const masterPrompt = `
 You are the lead visual content strategist for a viral French political Facebook page with 500,000+ followers.
-Your posts use dramatic, gritty AI-generated images with bold French text overlays and clear NON👍/OUI❤️ poll cards at the bottom.
-Every output must feel incredibly urgent, emotionally volatile, and debate-worthy.
+Your graphics use dramatic, gritty AI-generated images with bold French text overlays.
+Every output must feel incredibly urgent, emotionally volatile, and highly debate-worthy.
 
 ━━━ THE INPUT NEWS DATA ━━━
 ${articleContext}
+
+━━━ MANDATORY LAYOUT STYLE SELECTION (CRITICAL) ━━━
+You must design this specific social media asset using the following exact layout blueprint rules:
+${imgStyle}
 
 ━━━ YOUR EXTRACTION TASK ━━━
 Carefully read the headline and description above to isolate:
@@ -310,39 +316,42 @@ You must write a highly detailed image generation prompt following these precise
    - For any other figure or a general placeholder: Describe a "distinguished 50-year-old French political representative, dark suit, immaculate grooming, wearing an official tricolor sash".
 
 2. DETAILED REALISTIC BACKGROUND ENVIRONMENT: Never use abstract rooms or simple walls. Describe a specific, gritty real-world environment tied directly to the structural issue in the news:
-   - Schools / Extra-curricular / Public Services: "In the right background, a dimly lit Paris public municipal school corridor, institutional walls with weathered plaster and slightly peeled beige paint, bulletin boards with overlapping messy flyers, a localized French text sign reading 'ÉCOLE MUNICIPALE', cluttered child lockers, cold industrial lighting."
+   - Schools / Extra-curricular / Public Services: "In the background, a dimly lit Paris public municipal school corridor, institutional walls with weathered plaster and slightly peeled beige paint, bulletin boards with overlapping messy flyers, a localized French text sign reading 'ÉCOLE MUNICIPALE', cluttered child lockers, cold industrial lighting."
    - Strikes / Demonstrations / Manifestations: "In the background, crowded urban French streets, protest banners with bold hand-painted lettering, smoke flares filtering hazy sunlight, police barriers, angry trade union workers wearing high-visibility vests."
    - Urban Crisis / Crime: "Broken cobblestone pavement, graffiti-covered concrete walls, makeshift banners, old Haussmann-style facades fading under grey overcast skies."
 
 3. EXPLICIT FRENCH EMBLEMS: Explicitly instruct the generator to include a crisp French national flag (tricolor drape) somewhere clear in the background architectural scenery.
 
-4. TEXT OVERLAY BUFFER ZONE: You must append this exact literal string to protect your layout elements from overlapping details: "the lower 45% of the frame smoothly fades to a completely solid, uniform near-black (#0a0a0a) gradient field that is entirely clear of details, objects, or scenery, reserved exclusively for graphic text banners and poll overlay templates."
+4. ADAPTIVE TEXT OVERLAY PROTECTION ZONE (READ CAREFULLY):
+   - If the active style block above requires a "Poll", append this exact literal string: "the lower 45% of the frame smoothly fades to a completely solid, uniform near-black (#0a0a0a) gradient field that is entirely clear of details, objects, or scenery, reserved exclusively for graphic text banners and poll overlay templates."
+   - If the active style block does NOT require a poll (e.g., Shock & Impact, Portrait), append this exact literal string instead: "the lower 30% of the frame smoothly transitions to a clean, solid dark near-black (#0a0a0a) gradient field completely free of background details to act as a clear canvas for a standalone headline overlay text."
 
 5. CAMERA TECH SPECS: Conclude the prompt string exactly with: "photojournalism style, cinematic side rim lighting, sharp focus on subject foreground, volumetric air particles, high-contrast desaturated color grading, shot on Canon EOS R5, 35mm lens, f/2.8, 8k resolution, hyper-realistic --ar 4:5 --style raw".
 
 ━━━ STRUCTURED OUTPUT FORMAT ━━━
 Respond with ONLY these fields in order. Do not include any markdown headings like '###' or '**'. No explanatory talk.
+CRITICAL FORMATTING INSTRUCTION: If the active style instructions state "No poll" or "DO NOT generate poll questions", you MUST still output the POLL_QUESTION, NON_LABEL, and OUI_LABEL lines, but fill them exactly with the word: NONE.
 
 IMAGE_PROMPT:
-[Provide a dense 5-7 sentence English generation prompt blending the specific named politician's physical likeness, posture, the gritty contextual background scene, the mandatory text protection zone sentence, and camera parameters.]
+[Provide a dense 5-7 sentence English generation prompt blending the specific named politician's physical likeness, posture, the gritty contextual background scene, the adaptive text protection zone sentence, and camera parameters.]
 
 TITRE:
-[Main provocative French debate statement. ALL CAPS. Max 10 words. Must reference the exact conflict, e.g., 'SÉCURITÉ DANS LES ÉCOLES : LA MAIRIE DE PARIS FAILLIT-ELLE ?']
+[Main provocative French debate or shocking headline statement. ALL CAPS. Max 10 words.]
 
 HIGHLIGHT_PHRASE:
 [The 2-4 most shocking words directly extracted from your TITRE field.]
 
 SOUS_TITRE:
-[One specific metric, department, or statistic line in French. Max 10 words. Example: '78 animateurs suspendus' or 'Alerte dans les écoles'. If none, write: NONE]
+[One specific metric, department, or statistic line in French. Max 10 words. If none, write: NONE]
 
 POLL_QUESTION:
-[The binary poll debate question in French. ALL CAPS. Ends with ' ?'. Max 12 words.]
+[The binary poll debate question in French. ALL CAPS. Ends with ' ?'. Max 12 words. If the selected layout style has no poll, write: NONE]
 
 NON_LABEL:
-[What voting NON👍 stands for in this specific scenario. 3-5 French words.]
+[What voting NON👍 stands for. 3-5 French words. If the selected layout style has no poll, write: NONE]
 
 OUI_LABEL:
-[What voting OUI❤️ stands for in this specific scenario. 3-5 French words.]
+[What voting OUI❤️ stands for. 3-5 French words. If the selected layout style has no poll, write: NONE]
 
 FACEBOOK_CAPTION:
 [The complete French social media caption post structure, beginning with an urgent headline hook referencing the politician by name, 2 sentences of specific event details from the title, a provocative question, and the standard '👉 Donnez votre avis...' call-to-action with topic hashtags.]
@@ -350,20 +359,21 @@ FACEBOOK_CAPTION:
 IMAGE_NEGATIVE:
 [Exclusion parameters separated by commas: english text on walls, cartoon style, duplicate heads, happy smiling faces, bright cheer colors.]
 `.trim();
+
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gm()}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-body: JSON.stringify({
-  contents: [{ parts: [{ text: masterPrompt }] }],
-  generationConfig: { 
-    temperature: 0.75, 
-    maxOutputTokens: 2500, // Forces the API engine to give you a complete response stream
-    topK: 40, 
-    topP: 0.95 
-  }
-})
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: masterPrompt }] }],
+        generationConfig: { 
+          temperature: 0.70, // Slightly dialed down to maximize alignment with layout rules
+          maxOutputTokens: 2500, 
+          topK: 40, 
+          topP: 0.95 
+        }
+      })
     }
   );
 
@@ -378,8 +388,6 @@ body: JSON.stringify({
 
   return parse(rawText);
 }
-
-
 
 // ── TAB SWITCHER SYSTEM ──
 // ── TAILORED SWITCH TAB MECHANISM ──
