@@ -215,6 +215,61 @@ async function fetchFullArticle(url) {
   return null; // both proxies failed — fall back to title+description only
 }
 
+// ── BRIDGE FUNCTION FOR BUTTON CLICK ──
+async function generate(index) {
+  // 1. Get the target article from your global array
+  const article = articles[index];
+  if (!article) {
+    showErr('Article data missing.');
+    return;
+  }
+  
+  // 2. Set the global 'current' variable so regenerate() works later
+  current = article;
+  
+  // 3. UI Feedback: Change button state to loading
+  const btn = document.getElementById(`gb${index}`);
+  let oldHtml = '';
+  if (btn) {
+    oldHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.classList.add('loading');
+    // If your CSS doesn't automatically show mini-spin on .loading, force it:
+    const label = btn.querySelector('.gb-label');
+    if (label) label.textContent = 'Generating with Gemini...';
+  }
+  
+  hideErr();
+  
+  try {
+    // 4. Run the main Gemini logic using the globally active style variable
+    lastResult = await callGemini(article, style);
+    
+    // 5. Send data to your modal updater
+    fillModal(article, lastResult);
+    
+    // 6. Open your modal (assuming you have a openModal function in your UI)
+    if (typeof openModal === 'function') {
+      openModal();
+    } else {
+      // Fallback if your layout uses a class toggle on a modal container element
+      const modal = document.getElementById('modal') || document.getElementById('resultModal');
+      if (modal) modal.classList.add('open');
+    }
+    
+    toast('Viral prompt ready!');
+  } catch (e) {
+    showErr('Generation Failed: ' + e.message);
+    console.error("Gemini Generation Error:", e);
+  } finally {
+    // 7. Restore button state
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.remove('loading');
+      btn.innerHTML = oldHtml;
+    }
+  }
+}
 // ── STEP 3: MAIN GEMINI CALL ─────────────────────────────────────
 async function callGemini(article, st) {
   const imgStyle = styleInstructions[st] || styleInstructions.poll;
