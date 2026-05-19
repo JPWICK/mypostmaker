@@ -372,7 +372,7 @@ IMAGE_NEGATIVE:
         contents: [{ parts: [{ text: masterPrompt }] }],
         generationConfig: { 
           temperature: 0.70, // Slightly dialed down to maximize alignment with layout rules
-          maxOutputTokens: 2500, 
+          maxOutputTokens: 4500, 
           topK: 40, 
           topP: 0.95 
         }
