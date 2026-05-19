@@ -343,7 +343,7 @@ IMAGE_NEGATIVE:
 `.trim();
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${gm()}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gm()}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
