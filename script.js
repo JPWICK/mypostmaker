@@ -144,6 +144,38 @@ function ago(d) {
   if (s < 86400) return `${Math.floor(s/3600)}h ago`;
   return `${Math.floor(s/86400)}d ago`;
 }
+function renderNews(arts) {
+  document.getElementById('newsLabel').style.display = 'flex';
+  const c = document.getElementById('newsContainer');
+  const g = document.createElement('div');
+  g.className = 'news-grid';
+  arts.forEach((a, i) => {
+    const card = document.createElement('div');
+    card.className = 'news-card';
+    card.innerHTML = `
+      <div class="card-img">
+        ${a.image ? `<img src="${a.image}" alt="" onerror="this.parentElement.innerHTML='🗼'"><div class="card-img-fade"></div>` : '🗼'}
+      </div>
+      <div class="card-body">
+        <div class="card-meta">
+          <span class="card-source">${a.source?.name || 'BFMTV'}</span>
+          <span class="card-dot"></span>
+          <span class="card-time">${ago(a.publishedAt)}</span>
+          <span class="card-cat-tag">${cat}</span>
+        </div>
+        <div class="card-title">${a.title}</div>
+        <div class="card-desc">${stripHTML(a.description || '')}</div>
+        <button class="gen-btn" id="gb${i}" onclick="generate(${i})">
+          ✨ <span class="gb-label">Generate Viral Prompt</span>
+          <div class="mini-spin"></div>
+        </button>
+      </div>`;
+    g.appendChild(card);
+  });
+  c.innerHTML = '';
+  c.appendChild(g);
+}
+
 
 // ── STEP 1: STYLE COMPOSITION RULES ─────────────────────────────
 const styleInstructions = {
