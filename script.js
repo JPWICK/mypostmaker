@@ -431,43 +431,60 @@ function bgClose(event) {
 }
 
 // ── STEP 4: ROBUST PARSER ────────────────────────────────────────
+// ── BULLETPROOF RECOVERY PARSER ──
 function parse(text) {
-  function get(fieldName) {
+  console.log("RAW GEMINI OUTPUT FOR DEBUGGING:\n", text); // Helpful for checking F12 console
+
+  // Helper function that extracts text between key markers even if they contain markdown symbols
+  function getField(fieldName) {
+    // This regex dynamically strips away common AI artifacts like **, ###, or trailing spaces
     const pattern = new RegExp(
-      '(?:^|\\n)\\*{0,2}' + fieldName + '\\*{0,2}\\s*:\\s*([\\s\\S]*?)(?=\\n\\*{0,2}[A-Z_]{3,}\\*{0,2}\\s*:|$)',
+      '(?:^|\\n)[#\\s\\*]*' + fieldName + '[#\\s\\*]*[:\\-]?\\s*([\\s\\S]*?)(?=\\n[#\\s\\*]*[A-Z_]{4,}[#\\s\\*]*[:\\-]?|$)',
       'i'
     );
-    const m = text.match(pattern);
-    return m ? m[1].trim() : '';
+    const match = text.match(pattern);
+    return match ? match[1].trim() : '';
   }
 
-  const imagePrompt     = get('IMAGE_PROMPT');
-  const titre           = get('TITRE');
-  const highlightPhrase = get('HIGHLIGHT_PHRASE');
-  const sousTitre       = get('SOUS_TITRE');
-  const pollQuestion    = get('POLL_QUESTION');
-  const nonLabel        = get('NON_LABEL');
-  const ouiLabel        = get('OUI_LABEL');
-  const caption         = get('FACEBOOK_CAPTION');
-  const negative        = get('IMAGE_NEGATIVE');
+  // Extract each field safely
+  let imagePrompt     = getField('IMAGE_PROMPT');
+  const titre           = getField('TITRE');
+  const highlightPhrase = getField('HIGHLIGHT_PHRASE');
+  const sousTitre       = getField('SOUS_TITRE');
+  const pollQuestion    = getField('POLL_QUESTION');
+  const nonLabel        = getField('NON_LABEL');
+  const ouiLabel        = getField('OUI_LABEL');
+  const caption         = getField('FACEBOOK_CAPTION');
+  const negative        = getField('IMAGE_NEGATIVE');
 
-  const fullImagePrompt = negative
-    ? `${imagePrompt}\n\nNEGATIVE PROMPT: ${negative}`
+  // Fallback safety net: If the strict parser failed completely due to erratic AI formatting,
+  // we do a brute-force split to at least show the prompt text so your site never stays blank.
+  if (!imagePrompt && text.toUpperCase().includes('IMAGE_PROMPT')) {
+    const fallbackParts = text.split(/IMAGE_PROMPT\s*:/i);
+    if (fallbackParts[1]) {
+      imagePrompt = fallbackParts[1].split(/\n[A-Z_]+:/i)[0].replace(/[\*#]/g, '').trim();
+    }
+  }
+
+  // Combine image prompt with negative parameters cleanly
+  const fullImagePrompt = negative && !imagePrompt.toUpperCase().includes('NEGATIVE') 
+    ? `${imagePrompt}\n\n[NEGATIVE PROMPT]: ${negative}` 
     : imagePrompt;
 
+  // Reconstruct your beautiful template for the French Text tab view
   const frText = `
 MAIN TITLE — bold white ALL CAPS large font:
-${titre}
+${titre || '(No title generated)'}
 
 HIGHLIGHT WITH YELLOW/RED BRUSH STROKE:
-"${highlightPhrase}"
+"${highlightPhrase || '(No highlight phrase)'}"
 
 SUBTITLE — smaller white text below title:
-${(sousTitre && sousTitre !== 'NONE') ? sousTitre : '(no subtitle)'}
+${(sousTitre && sousTitre !== 'NONE') ? sousTitre : '(No subtitle)'}
 
 ━━━ POLL SECTION — bottom of image ━━━
 Poll question:
-${pollQuestion}
+${pollQuestion || '(No poll question)'}
 
 LEFT SIDE — NON 👍 (blue):
 ${nonLabel || 'NON'}
@@ -476,17 +493,17 @@ RIGHT SIDE — OUI ❤️ (red):
 ${ouiLabel || 'OUI'}
 `.trim();
 
-  return {
-    imagePrompt: fullImagePrompt,
-    frText,
-    titre,
-    highlightPhrase,
-    sousTitre,
-    pollQuestion,
-    nonLabel,
-    ouiLabel,
-    caption,
-    negative
+  return { 
+    imagePrompt: fullImagePrompt || text.slice(0, 500), // Ultimate absolute fallback
+    frText, 
+    titre, 
+    highlightPhrase, 
+    sousTitre, 
+    pollQuestion, 
+    nonLabel, 
+    ouiLabel, 
+    caption: caption || text, 
+    negative 
   };
 }
 
