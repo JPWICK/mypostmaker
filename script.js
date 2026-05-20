@@ -181,7 +181,6 @@ function renderNews(arts) {
 }
 
 // ── STYLE COMPOSITION RULES ──
-// ── NEW PURE-COMPOSITION STYLE FRAMEWORKS (NO HARDCODED NAMES) ──
 const styleInstructions = {
   poll: `COMPOSITION: A cinematic photojournalistic scene. The main subjects from the news must be positioned clearly in the foreground. The lower 35% of the frame must smoothly fade into a solid, clean, dark near-black (#0a0a0a) gradient field to act as a perfect canvas for graphic headline text overlays. Shot on 35mm lens, realistic textures, press photography style.`,
   shock: `COMPOSITION: A high-impact dramatic single image scene. The primary actors from the article must be centered with intense, emotional expressions. A heavy dark vignette must cast deep shadows over the borders and the bottom layout quadrant to preserve maximum text readability. Dark atmospheric lighting.`,
@@ -191,36 +190,28 @@ const styleInstructions = {
 
 // ── DYNAMIC NEWS-MATCHING GEMINI PROMPT GENERATOR ──
 async function callGemini(article, st) {
-  if (!gm()) { showErr('Please enter your Gemini API key first.'); if (!panelOpen) togglePanel(); return; }
+  const imgStyle = styleInstructions[st];
   
-  const imgStyle = styleInstructions[st] || styleInstructions.poll;
-  
-  // Try fetching full article text via proxies if available, otherwise fallback to details safely
-  let fullText = null;
-  try { if (typeof fetchFullArticle === 'function') fullText = await fetchFullArticle(article.url); } catch(e) { fullText = null; }
-
-  const articleContext = fullText
-    ? `Title: ${article.title}\nSource: ${article.source?.name || 'French press'}\nFull Text:\n${fullText}`
-    : `Title: ${article.title}\nSource: ${article.source?.name || 'French press'}\nDescription: ${article.description || 'N/A'}`;
-
   const prompt = `You are an expert viral content creator for a French political news Facebook page. Your job is to transform a real news article into a high-engagement visual post and poll package.
 
 STEP 1: CLOSELY ANALYZE THE TARGET NEWS ARTICLE:
-${articleContext}
+Title: ${article.title}
+Source: ${article.source?.name || 'French press'}
+Description: ${article.description || 'N/A'}
 
 STEP 2: IDENTIFY THE ACTUAL PEOPLE INSIDE THIS NEWS:
-* Read the title and context above. Who is this story actually about? (e.g., if it mentions François Villeroy de Galhau, Édouard Philippe, Sabrina Roubache, or a judge, they are the subjects. If NO specific individual is named, use the relevant general group archetype like "a senior French corporate executive", "a French union worker", or "local citizens").
+* Read the title and description above. Who is this story actually about? (e.g., if it mentions François Villeroy de Galhau, Édouard Philippe, Sabrina Roubache, or a judge, they are the subjects. If NO specific individual is named, use the relevant general group archetype like "a senior French corporate executive", "a French union worker", or "local citizens").
 * YOU MUST NEVER DEFAULT TO EMMANUEL MACRON OR GABRIEL ATTAL UNLESS THEY ARE EXPLICITLY NAMED IN THE TITLE OR DESCRIPTION ABOVE.
 
 STEP 3: CREATE DETAILED VISUAL DESCRIPTIONS:
-Based on the actual people identified in Step 2, determine their gender, approximate age, and realistic professional appearance (e.g., glasses, specific hairstyles, intense or thoughtful expressions). Always include a crisp French national flag (tricolor drape) somewhere clear in the background architectural scenery.
+Based on the actual people identified in Step 2, determine their gender, approximate age, and realistic professional appearance (e.g., crisp dark suit, glasses, specific hairstyles, intense or thoughtful expressions).
 
 STEP 4: APPLY THIS LAYOUT STRUCTURE TO YOUR IMAGE PROMPT:
 ${imgStyle}
 
-Generate content in this EXACT format — no extra text, no markdown, and strictly use ONLY these five field keys below:
+Generate content in this EXACT format — no extra text, no markdown:
 
-IMAGE_PROMPT: [Write a highly detailed 5-6 sentence English image generation prompt for Midjourney or DALL-E 3 based strictly on the analysis above. First, explicitly detail the specific PEOPLE found in the news (state their exact names, describe their realistic age, gender, facial features, hair, clothing, and expressions). If multiple distinct people are named in the news, you MUST include both of them standing together in the scene. Second, detail the exact environmental PLACE, background objects, and atmospheric weather matching the news topic. Third, integrate the required layout composition parameter rules: demand that the text overlay areas are kept flat, dark, clean, and completely free of distracting busy details. End with: wide angle photo, dramatic cinematic lighting, volumetric air particles, high detailed texture, 8k resolution --ar 3:4]
+IMAGE_PROMPT: [Write a highly detailed 5-6 sentence English image generation prompt for Midjourney or DALL-E 3 based strictly on the analysis above. First, explicitly detail the specific PEOPLE found in the news (state their exact names, describe their realistic age, gender, facial features, hair, clothing, and expressions). If multiple distinct people are named in the news, you MUST include both of them standing together in the scene. Second, detail the exact environmental PLACE, background objects, and atmospheric weather matching the news topic. Third, integrate the required layout composition parameter rules: demand that the text overlay areas are kept flat, dark, clean, and completely free of distracting busy details. End with: wide angle photo, dramatic cinematic lighting, volumetric air particles, high detailed texture, 8k resolution --ar 4:5]
 
 TITRE: [Main French debate question or statement based on the article's core conflict, ALL CAPS, max 10 words, provocative and emotional]
 
@@ -228,9 +219,10 @@ HIGHLIGHT_WORD: [ONE single word from the TITRE to highlight in RED color — th
 
 SOUS_TITRE: [Short French subtitle, max 10 words, adds context — or write NONE if not needed]
 
+POLL_QUESTION: [The debate question for the poll card, French, ALL CAPS, ends with " ?", max 12 words, must create a clear YES/NO debate]
+
 FACEBOOK_CAPTION: [Full French Facebook caption. 4-5 sentences. Open with an emotional hook directly referencing the news facts. Create urgency or outrage. Ask followers to vote NON👍 or OUI❤️. End with 4-5 hashtags: #France #Politique #Débat #Actualité and one specific topic tag based on the news]`;
 
-  // Using your exact original stable fetch pipeline
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${gm()}`,
     {
@@ -242,7 +234,6 @@ FACEBOOK_CAPTION: [Full French Facebook caption. 4-5 sentences. Open with an emo
       })
     }
   );
-  
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
     throw new Error(e.error?.message || `Gemini API error ${res.status}`);
