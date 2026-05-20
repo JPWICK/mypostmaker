@@ -300,6 +300,7 @@ async function generate(index) {
 }
 
 // ── DYNAMIC NEWS-MATCHING GEMINI PROMPT GENERATOR ──
+// ── DYNAMIC NEWS-MATCHING GEMINI PROMPT GENERATOR ──
 async function callGemini(article, st) {
   if (!gm()) { showErr('Please enter your Gemini API key first.'); if (!panelOpen) togglePanel(); return; }
 
@@ -312,6 +313,7 @@ async function callGemini(article, st) {
     ? `ARTICLE TITLE: ${article.title}
 SOURCE: ${article.source?.name || 'French press'}
 PUBLISHED: ${article.publishedAt || 'Recent'}
+CATEGORY_TAB: ${cat}
 FULL ARTICLE TEXT (use this for all details — names, facts, numbers, quotes):
 """
 ${fullText}
@@ -319,13 +321,14 @@ ${fullText}
     : `ARTICLE TITLE: ${article.title}
 SOURCE: ${article.source?.name || 'French press'}
 PUBLISHED: ${article.publishedAt || 'Recent'}
+CATEGORY_TAB: ${cat}
 DESCRIPTION: ${article.description || 'No description available'}
 NOTE: Only title and description available. Extract maximum detail from these.`.trim();
 
   const masterPrompt = `
-You are the lead visual content strategist for a viral French political Facebook page with 500,000+ followers.
-Your graphics use dramatic, gritty AI-generated images with bold French text overlays.
-Every output must feel incredibly urgent, emotionally volatile, and highly debate-worthy.
+You are the lead visual content strategist for a viral French media Facebook page with 500,000+ followers.
+Your graphics use dramatic, high-impact AI-generated images with bold French text overlays.
+Every output must match the context, subjects, and tone of the input news with 100% precision.
 
 CRITICAL SYSTEM RULE: Output raw text ONLY. Do NOT wrap your entire response inside markdown code blocks like \`\`\`text or \`\`\`. Start immediately with the first key field name.
 
@@ -336,29 +339,35 @@ ${articleContext}
 You must design this specific social media asset using the following exact layout blueprint rules:
 ${imgStyle}
 
-━━━ YOUR EXTRACTION TASK ━━━
-Carefully read the headline and description above to isolate the actual subjects:
-1. IDENTIFY THE ACTUAL PEOPLE INSIDE THIS NEWS:
-   - Who is this story actually about? (e.g., if it mentions François Villeroy de Galhau, Édouard Philippe, Sabrina Roubache, Emmanuel Grégoire, or a judge, they are the main subjects).
-   - If multiple distinct people are named in the news conflict, you MUST include both of them standing together in the prompt scene layout.
-   - YOU MUST NEVER DEFAULT TO EMMANUEL MACRON OR GABRIEL ATTAL UNLESS THEY ARE EXPLICITLY NAMED IN THE INPUT DATA ABOVE.
-   
-2. INTELLIGENT FALLBACK (ONLY IF NO PEOPLE ARE NAMED IN THE TEXT):
-   - Only if NO specific French person/politician can be found in the article text, dynamically evaluate the theme and force one of these two public figures:
-     • For International Affairs, Global Reports, Diplomacy, or Macro-Economics: Force Emmanuel Macron. Describe him as: "The real-world French President Emmanuel Macron. A slim man in his late 40s, short brown hair neatly combed back, clean-shaven, sharp facial features, wearing a dark navy bespoke tailored suit with a white shirt and slim tie, looking intensely forward with a furrowed brow, a look of deep concern."
-     • For Security, Justice, Immigration, Domestic Scandals, or Social Crises: Force Gabriel Attal. Describe him as: "The real-world French politician Gabriel Attal. A slim 37-year-old man, sharp youthful facial features, short styled dark brown hair, completely clean-shaven, intense deep-set eyes, wearing a crisp modern dark navy tailored suit with a white shirt, standing in a posture of deep concern and contemplation."
-   - If a group archetype fits best (e.g., strike/protest), use the relevant general group profile like "a senior French corporate executive", "a French union worker", or "local citizens" with detailed emotional traits.
+━━━ YOUR EXTRACTION & IDENTITY ALIGNMENT TASK ━━━
+Carefully analyze the headline, category tab, and text description above to build a perfectly accurate prompt:
 
-3. REALISTIC CONFLICT BACKGROUND ENVIRONMENT:
-   Never use abstract rooms. Map out a specific background tied directly to the structural issue in the news:
-   - Schools / Extra-curricular / Public Services: "A dimly lit Paris public municipal school corridor, institutional walls with weathered plaster, bulletin boards with overlapping messy flyers, a localized French text sign reading 'ÉCOLE MUNICIPALE'."
-   - Strikes / Demonstrations / Manifestations: "Crowded urban French streets, protest banners with bold hand-painted lettering, smoke flares filtering hazy sunlight, police barriers, angry trade union workers wearing high-visibility vests."
-   - Urban Crisis / Finance / Corporate / Housing: "A crowded French HLM public housing project with rundown concrete facades, or crisp high-contrast modern skyscraper office structures matching the corporate background."
+1. THEMATIC CATEGORY ENFORCEMENT (CRITICAL):
+   - Look at the CATEGORY_TAB value. If it is "entertainment" or "sports", YOU MUST NEVER FORCE A FRENCH POLITICIAN (like Macron, Attal, or Grégoire) into the scene. 
+   - For Entertainment/Culture: Keep the prompt focused purely on pop culture, Hollywood, cinema, international actors, actresses, directors, or TV sets mentioned in the news text.
+   - For Sports: Keep the prompt focused purely on athletes, stadiums, matches, pitches, jerseys, or sporting events mentioned.
 
-4. EXPLICIT FRENCH EMBLEMS & ADAPTIVE PROTECTION ZONES:
-   - Always include a crisp French national flag (tricolor drape) somewhere clear in the background architectural scenery.
-   - If the active style block above requires a "Poll", append text protection zone instructions: "the lower 45% of the frame smoothly fades to a completely solid, uniform near-black (#0a0a0a) gradient field that is entirely clear of details, objects, or scenery, reserved exclusively for graphic text banners and poll overlay templates."
-   - If NOT a poll style, append: "the lower 30% of the frame smoothly transitions to a clean, solid dark near-black (#0a0a0a) gradient field completely free of background details to act as a clear canvas for a standalone headline overlay text."
+2. IDENTIFY THE EXACT PEOPLE IN THE NEWS:
+   - Who is this story explicitly about? Isolate their exact names from the text (e.g., Ellen Pompeo, Shonda Rhimes, an international actress, an executive, an athlete).
+   - In your final prompt output, you must explicitly write their exact names and generate highly precise physical descriptions of them (describe their real-world gender, approximate age, hairstyle, expression, and context-appropriate clothing like medical scrubs, a Hollywood suit, or a sports jersey).
+   - If multiple distinct people are named in the news conflict, include both of them standing together or interacting in the layout scene.
+
+3. INTELLIGENT FALLBACKS (ONLY FOR POLITICS/BUSINESS/GENERAL IF NO NAMES EXIST):
+   - Only if the CATEGORY_TAB is "politics", "business", or "general", AND absolutely no specific individual name can be found in the text, you may fall back to:
+     • Macro-Economics/International/Diplomacy: Force Emmanuel Macron. Describe him accurately.
+     • Domestic Scandals/Security/Justice/Social Crises: Force Gabriel Attal. Describe him accurately.
+   - Otherwise, always default to a realistic general archetype matching the topic exactly (e.g., "a senior French corporate executive in a glass skyscraper", "a tired French worker", or "local citizens at a public rally").
+
+4. REALISTIC SCENE ENVIRONMENT:
+   Never use abstract backgrounds. Match the physical setting to the news text details:
+   - For Entertainment/TV News: Describe a highly polished, high-tech Hollywood studio backlot, a bustling modern television set with cameras and lighting rigs, or an iconic scene layout mimicking the show mentioned.
+   - For Public Service Crises: A realistic French public school corridor or weathered institutional office building.
+   - For Social/Strike Crises: Crowded urban French streets, protest banners with bold hand-painted lettering, or police barriers.
+
+5. ADAPTIVE PROTECTION ZONES & FLAG EMBLEMS:
+   - If the CATEGORY_TAB is related to French national news or politics, include a crisp French flag in the architecture. If it is international entertainment or Hollywood, use relevant setting details instead.
+   - If the active style block above requires a "Poll", append: "the lower 45% of the frame smoothly fades to a completely solid, uniform near-black (#0a0a0a) gradient field that is entirely clear of details, reserved exclusively for graphic text banners."
+   - If NOT a poll style, append: "the lower 30% of the frame smoothly transitions to a clean, solid dark near-black (#0a0a0a) gradient field to act as a clear canvas for headline text overlays."
 
 ━━━ CAMERA TECH SPECS ━━━
 Conclude the prompt description with: "photojournalism style, cinematic side rim lighting, sharp focus on subject foreground, volumetric air particles, high-contrast desaturated color grading, shot on Canon EOS R5, 35mm lens, f/2.8, 8k resolution, hyper-realistic --ar 4:5 --style raw".
@@ -368,16 +377,16 @@ Respond with ONLY these fields in order. No markdown headings or bold symbols.
 CRITICAL: If the active style has no poll, fill POLL_QUESTION, NON_LABEL, OUI_LABEL with: NONE
 
 IMAGE_PROMPT:
-[Dense 5-7 sentence English generation prompt mapping the exact real names and descriptors identified.]
+[Dense 5-7 sentence English generation prompt mapping the exact real names and visual descriptors identified.]
 
 TITRE:
-[Main provocative French headline. ALL CAPS. Max 10 words.]
+[Main provocative French headline reflecting the true topic. ALL CAPS. Max 10 words.]
 
 HIGHLIGHT_PHRASE:
 [The 2-4 most shocking words from TITRE.]
 
 SOUS_TITRE:
-[One specific metric or statistic in French. Max 10 words. If none: NONE]
+[One specific metric, name, or statistic in French. Max 10 words. If none: NONE]
 
 POLL_QUESTION:
 [Binary poll debate question in French. ALL CAPS. Ends with ' ?'. Max 12 words. If no poll: NONE]
@@ -389,7 +398,7 @@ OUI_LABEL:
 [What OUI❤️ stands for. 3-5 French words. If no poll: NONE]
 
 FACEBOOK_CAPTION:
-[Complete French social media caption: urgent headline hook with politician name, 2 sentences of event details, provocative question, '👉 Donnez votre avis...' CTA with hashtags.]
+[Complete French social media caption matching the accurate topic context, a provocative question, '👉 Donnez votre avis...' CTA with hashtags.]
 
 IMAGE_NEGATIVE:
 [Exclusion parameters: english text on walls, cartoon style, duplicate heads, happy smiling faces, bright cheer colors.]`;
@@ -402,7 +411,7 @@ IMAGE_NEGATIVE:
       body: JSON.stringify({
         contents: [{ parts: [{ text: masterPrompt }] }],
         generationConfig: {
-          temperature: 0.40,
+          temperature: 0.35,
           maxOutputTokens: 2500
         }
       })
