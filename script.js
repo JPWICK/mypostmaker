@@ -181,165 +181,76 @@ function renderNews(arts) {
 }
 
 // ── STYLE COMPOSITION RULES ──
-// ── DYNAMIC STYLE FRAMEWORKS (PURE LAYOUT BLUEPRINTS - NO HARDCODED NAMES) ──
+// ── NEW PURE-COMPOSITION STYLE FRAMEWORKS (NO HARDCODED NAMES) ──
 const styleInstructions = {
-  poll: `
-COMPOSITION — "POLL DEBATE" STYLE (your main viral style):
-- Portrait 3:4 ratio
-- TOP 55%: Main dramatic scene. Main news subject/politician figure large on LEFT foreground (waist up), real crisis scene on RIGHT background
-- BOTTOM 45%: Must fade to solid near-black — empty zone for text/poll graphics overlay
-- Main Subject: shown from waist up, slightly left of center, intense or contemplative expression, looking slightly right
-- Background RIGHT: the actual real-world scene from the news (protest, parliament, housing, border, street)
-- Lighting: dramatic cinematic rim light on figure, moody overcast or golden hour background
-- Color grade: dark, high contrast, slightly desaturated, French political tones (deep blue/red)`,
-
-  shock: `
-COMPOSITION — "SHOCK & IMPACT" STYLE:
-- Full frame dramatic wide establishing shot
-- BOTTOM 40% fades to solid dark for text overlay
-- The SCENE is the subject — no single dominant person
-- Could be: stormy sky over Paris, massive protest crowd, empty Palais Bourbon at night
-- Color grade: dark, ominous, high contrast, cold tones`,
-
-  split: `
-COMPOSITION — "SPLIT COMPARISON" STYLE:
-- Frame split diagonally as if physically torn
-- LEFT HALF: warm golden tones — prosperity, traditional France, café, family, Eiffel Tower
-- RIGHT HALF: cold gray/blue — poverty, urban tension, crowded HLM buildings, grey skies
-- French tricolor flag tears dramatically through the diagonal split center
-- BOTTOM 30%: solid dark gradient for text overlay`,
-
-  portrait: `
-COMPOSITION — "POLITICAL PORTRAIT" STYLE:
-- Tight 3/4 angle portrait filling LEFT 60% of frame from chest up
-- Subject looking slightly off-camera, intense expression
-- RIGHT side: blurred parliament, protest, or relevant political background
-- BOTTOM 40%: dark gradient fading to black for text overlay
-- Dramatic side rim lighting, dark moody background`
+  poll: `COMPOSITION: A cinematic photojournalistic scene. The main subjects from the news must be positioned clearly in the foreground. The lower 35% of the frame must smoothly fade into a solid, clean, dark near-black (#0a0a0a) gradient field to act as a perfect canvas for graphic headline text overlays. Shot on 35mm lens, realistic textures, press photography style.`,
+  shock: `COMPOSITION: A high-impact dramatic single image scene. The primary actors from the article must be centered with intense, emotional expressions. A heavy dark vignette must cast deep shadows over the borders and the bottom layout quadrant to preserve maximum text readability. Dark atmospheric lighting.`,
+  split: `COMPOSITION: A dramatic visual scene split diagonally as if physically torn or cracked down the center line. The LEFT SIDE must show a contrasting background setting relevant to the news topic, while the RIGHT SIDE depicts an opposing visual environment. The primary news subjects must stand overlapping the central division.`,
+  portrait: `COMPOSITION: A striking close-up, 3/4 angle political portrait framing the main person from the news article. The background behind them must be dramatically blurred with cinematic bokeh, showing relevant architectural context. Intense side rim lighting, leaving the bottom area dark and clear for graphic text.`
 };
 
 // ── DYNAMIC NEWS-MATCHING GEMINI PROMPT GENERATOR ──
 async function callGemini(article, st) {
   if (!gm()) { showErr('Please enter your Gemini API key first.'); if (!panelOpen) togglePanel(); return; }
-
+  
   const imgStyle = styleInstructions[st] || styleInstructions.poll;
-
+  
+  // Try fetching full article text via proxies if available, otherwise fallback to details safely
   let fullText = null;
-  try { fullText = await fetchFullArticle(article.url); } catch(e) { fullText = null; }
+  try { if (typeof fetchFullArticle === 'function') fullText = await fetchFullArticle(article.url); } catch(e) { fullText = null; }
 
   const articleContext = fullText
-    ? `ARTICLE TITLE: ${article.title}
-SOURCE: ${article.source?.name || 'French press'}
-PUBLISHED: ${article.publishedAt || 'Recent'}
-FULL ARTICLE TEXT (use this for all details — names, facts, numbers, quotes):
-"""
-${fullText}
-"""`.trim()
-    : `ARTICLE TITLE: ${article.title}
-SOURCE: ${article.source?.name || 'French press'}
-PUBLISHED: ${article.publishedAt || 'Recent'}
-DESCRIPTION: ${article.description || 'No description available'}
-NOTE: Only title and description available. Extract maximum detail from these.`.trim();
+    ? `Title: ${article.title}\nSource: ${article.source?.name || 'French press'}\nFull Text:\n${fullText}`
+    : `Title: ${article.title}\nSource: ${article.source?.name || 'French press'}\nDescription: ${article.description || 'N/A'}`;
 
-  const masterPrompt = `
-You are the lead visual content strategist for a viral French political Facebook page with 500,000+ followers.
-Your graphics use dramatic, gritty AI-generated images with bold French text overlays.
-Every output must feel incredibly urgent, emotionally volatile, and highly debate-worthy.
+  const prompt = `You are an expert viral content creator for a French political news Facebook page. Your job is to transform a real news article into a high-engagement visual post and poll package.
 
-━━━ THE INPUT NEWS DATA ━━━
+STEP 1: CLOSELY ANALYZE THE TARGET NEWS ARTICLE:
 ${articleContext}
 
-━━━ MANDATORY LAYOUT STYLE SELECTION (CRITICAL) ━━━
-You must design this specific social media asset using the following exact layout blueprint rules:
+STEP 2: IDENTIFY THE ACTUAL PEOPLE INSIDE THIS NEWS:
+* Read the title and context above. Who is this story actually about? (e.g., if it mentions François Villeroy de Galhau, Édouard Philippe, Sabrina Roubache, or a judge, they are the subjects. If NO specific individual is named, use the relevant general group archetype like "a senior French corporate executive", "a French union worker", or "local citizens").
+* YOU MUST NEVER DEFAULT TO EMMANUEL MACRON OR GABRIEL ATTAL UNLESS THEY ARE EXPLICITLY NAMED IN THE TITLE OR DESCRIPTION ABOVE.
+
+STEP 3: CREATE DETAILED VISUAL DESCRIPTIONS:
+Based on the actual people identified in Step 2, determine their gender, approximate age, and realistic professional appearance (e.g., glasses, specific hairstyles, intense or thoughtful expressions). Always include a crisp French national flag (tricolor drape) somewhere clear in the background architectural scenery.
+
+STEP 4: APPLY THIS LAYOUT STRUCTURE TO YOUR IMAGE PROMPT:
 ${imgStyle}
 
-━━━ YOUR EXTRACTION & IDENTIFICATION TASK ━━━
-Carefully read the headline and description above to isolate the actual subjects:
-1. IDENTIFY THE ACTUAL PEOPLE INSIDE THIS NEWS:
-   - Who is this story actually about? (e.g., if it mentions François Villeroy de Galhau, Édouard Philippe, Sabrina Roubache, Emmanuel Grégoire, or a judge, they are the main subjects).
-   - If multiple distinct people are named in the news conflict, you MUST include both of them standing together in the prompt scene layout.
-   - YOU MUST NEVER DEFAULT TO EMMANUEL MACRON OR GABRIEL ATTAL UNLESS THEY ARE EXPLICITLY NAMED IN THE INPUT DATA ABOVE.
-   
-2. INTELLIGENT FALLBACK (ONLY IF NO PEOPLE ARE NAMED IN THE TEXT):
-   - Only if NO specific French person/politician can be found in the article text, dynamically evaluate the theme and force one of these two public figures:
-     • For International Affairs, Global Reports, Diplomacy, or Macro-Economics: Force Emmanuel Macron. Describe him as: "The real-world French President Emmanuel Macron. A slim man in his late 40s, short brown hair neatly combed back, clean-shaven, sharp facial features, wearing a dark navy bespoke tailored suit with a white shirt and slim tie, looking intensely forward with a furrowed brow, a look of deep concern."
-     • For Security, Justice, Immigration, Domestic Scandals, or Social Crises: Force Gabriel Attal. Describe him as: "The real-world French politician Gabriel Attal. A slim 37-year-old man, sharp youthful facial features, short styled dark brown hair, completely clean-shaven, intense deep-set eyes, wearing a crisp modern dark navy tailored suit with a white shirt, standing in a posture of deep concern and contemplation."
-   - If a group archetype fits best (e.g., strike/protest), use the relevant general group profile like "a senior French corporate executive", "a French union worker", or "local citizens" with detailed emotional traits.
+Generate content in this EXACT format — no extra text, no markdown, and strictly use ONLY these five field keys below:
 
-3. REALISTIC CONFLICT BACKGROUND ENVIRONMENT:
-   Never use abstract rooms. Map out a specific background tied directly to the structural issue in the news:
-   - Schools / Extra-curricular / Public Services: "A dimly lit Paris public municipal school corridor, institutional walls with weathered plaster, bulletin boards with overlapping messy flyers, a localized French text sign reading 'ÉCOLE MUNICIPALE'."
-   - Strikes / Demonstrations / Manifestations: "Crowded urban French streets, protest banners with bold hand-painted lettering, smoke flares filtering hazy sunlight, police barriers, angry trade union workers wearing high-visibility vests."
-   - Urban Crisis / Finance / Corporate / Housing: "A crowded French HLM public housing project with rundown concrete facades, or crisp high-contrast modern skyscraper office structures matching the corporate background."
+IMAGE_PROMPT: [Write a highly detailed 5-6 sentence English image generation prompt for Midjourney or DALL-E 3 based strictly on the analysis above. First, explicitly detail the specific PEOPLE found in the news (state their exact names, describe their realistic age, gender, facial features, hair, clothing, and expressions). If multiple distinct people are named in the news, you MUST include both of them standing together in the scene. Second, detail the exact environmental PLACE, background objects, and atmospheric weather matching the news topic. Third, integrate the required layout composition parameter rules: demand that the text overlay areas are kept flat, dark, clean, and completely free of distracting busy details. End with: wide angle photo, dramatic cinematic lighting, volumetric air particles, high detailed texture, 8k resolution --ar 3:4]
 
-4. EXPLICIT FRENCH EMBLEMS & ADAPTIVE PROTECTION ZONES:
-   - Always include a crisp French national flag (tricolor drape) somewhere clear in the background architectural scenery.
-   - If the active style block above requires a "Poll", append text protection zone instructions: "the lower 45% of the frame smoothly fades to a completely solid, uniform near-black (#0a0a0a) gradient field that is entirely clear of details, objects, or scenery, reserved exclusively for graphic text banners and poll overlay templates."
-   - If NOT a poll style, append: "the lower 30% of the frame smoothly transitions to a clean, solid dark near-black (#0a0a0a) gradient field completely free of background details to act as a clear canvas for a standalone headline overlay text."
+TITRE: [Main French debate question or statement based on the article's core conflict, ALL CAPS, max 10 words, provocative and emotional]
 
-━━━ CAMERA TECH SPECS ━━━
-Conclude the prompt description with: "photojournalism style, cinematic side rim lighting, sharp focus on subject foreground, volumetric air particles, high-contrast desaturated color grading, shot on Canon EOS R5, 35mm lens, f/2.8, 8k resolution, hyper-realistic --ar 4:5 --style raw".
+HIGHLIGHT_WORD: [ONE single word from the TITRE to highlight in RED color — the most emotionally charged word]
 
-━━━ STRUCTURED OUTPUT FORMAT ━━━
-Respond with ONLY these fields in order. No markdown headings or bold symbols.
-CRITICAL: If the active style has no poll, fill POLL_QUESTION, NON_LABEL, OUI_LABEL with: NONE
+SOUS_TITRE: [Short French subtitle, max 10 words, adds context — or write NONE if not needed]
 
-IMAGE_PROMPT:
-[Dense 5-7 sentence English generation prompt mapping the exact real names and descriptors identified.]
+FACEBOOK_CAPTION: [Full French Facebook caption. 4-5 sentences. Open with an emotional hook directly referencing the news facts. Create urgency or outrage. Ask followers to vote NON👍 or OUI❤️. End with 4-5 hashtags: #France #Politique #Débat #Actualité and one specific topic tag based on the news]`;
 
-TITRE:
-[Main provocative French headline. ALL CAPS. Max 10 words.]
-
-HIGHLIGHT_PHRASE:
-[The 2-4 most shocking words from TITRE.]
-
-SOUS_TITRE:
-[One specific metric or statistic in French. Max 10 words. If none: NONE]
-
-POLL_QUESTION:
-[Binary poll debate question in French. ALL CAPS. Ends with ' ?'. Max 12 words. If no poll: NONE]
-
-NON_LABEL:
-[What NON👍 stands for. 3-5 French words. If no poll: NONE]
-
-OUI_LABEL:
-[What OUI❤️ stands for. 3-5 French words. If no poll: NONE]
-
-FACEBOOK_CAPTION:
-[Complete French social media caption: urgent headline hook with politician name, 2 sentences of event details, provocative question, '👉 Donnez votre avis...' CTA with hashtags.]
-
-IMAGE_NEGATIVE:
-[Exclusion parameters: english text on walls, cartoon style, duplicate heads, happy smiling faces, bright cheer colors.]`;
-
-    // Change the URL string to target the matching 2.5-flash engine:
+  // Using your exact original stable fetch pipeline
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gm()}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${gm()}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: masterPrompt }] }],
-        generationConfig: {
-          temperature: 0.70,
-          maxOutputTokens: 4500,
-          topK: 40,
-          topP: 0.95
-        }
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.75, maxOutputTokens: 1200 }
       })
     }
   );
-
-
+  
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
-    throw new Error(e.error?.message || `Gemini API error ${res.status} — check your API key`);
+    throw new Error(e.error?.message || `Gemini API error ${res.status}`);
   }
-
   const data = await res.json();
-  const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!rawText) throw new Error('Gemini returned empty response. Please try again.');
-
-  return parse(rawText);
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error('Empty response from Gemini. Try again.');
+  return parse(text);
 }
 
 
