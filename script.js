@@ -1,4 +1,4 @@
- let cat = 'politics';
+let cat = 'politics';
 let style = 'poll';
 let articles = [];
 let current = null;
