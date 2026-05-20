@@ -1,4 +1,4 @@
-let cat = 'politics';
+ let cat = 'politics';
 let style = 'poll';
 let articles = [];
 let current = null;
@@ -181,13 +181,14 @@ function renderNews(arts) {
 }
 
 // ── STYLE COMPOSITION RULES ──
+// ── DYNAMIC STYLE FRAMEWORKS (PURE LAYOUT BLUEPRINTS - NO HARDCODED NAMES) ──
 const styleInstructions = {
   poll: `
 COMPOSITION — "POLL DEBATE" STYLE (your main viral style):
-- Portrait 4:5 ratio
-- TOP 55%: Main dramatic scene. Politician figure large on LEFT foreground (waist up), real crisis scene on RIGHT background
+- Portrait 3:4 ratio
+- TOP 55%: Main dramatic scene. Main news subject/politician figure large on LEFT foreground (waist up), real crisis scene on RIGHT background
 - BOTTOM 45%: Must fade to solid near-black — empty zone for text/poll graphics overlay
-- Politician: shown from waist up, slightly left of center, intense or contemplative expression, looking slightly right
+- Main Subject: shown from waist up, slightly left of center, intense or contemplative expression, looking slightly right
 - Background RIGHT: the actual real-world scene from the news (protest, parliament, housing, border, street)
 - Lighting: dramatic cinematic rim light on figure, moody overcast or golden hour background
 - Color grade: dark, high contrast, slightly desaturated, French political tones (deep blue/red)`,
@@ -217,89 +218,7 @@ COMPOSITION — "POLITICAL PORTRAIT" STYLE:
 - Dramatic side rim lighting, dark moody background`
 };
 
-// ── FETCH FULL ARTICLE ──
-async function fetchFullArticle(url) {
-  if (!url) return null;
-
-  const proxies = [
-    `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-    `https://corsproxy.io/?${encodeURIComponent(url)}`
-  ];
-
-  for (const proxyUrl of proxies) {
-    try {
-      const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(6000) });
-      if (!res.ok) continue;
-
-      const data = await res.json();
-      const html = data.contents || data;
-      if (typeof html !== 'string') continue;
-
-      const text = html
-        .replace(/<script[\s\S]*?<\/script>/gi, '')
-        .replace(/<style[\s\S]*?<\/style>/gi, '')
-        .replace(/<nav[\s\S]*?<\/nav>/gi, '')
-        .replace(/<header[\s\S]*?<\/header>/gi, '')
-        .replace(/<footer[\s\S]*?<\/footer>/gi, '')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/\s{3,}/g, '\n')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .trim();
-
-      if (text.length > 200) return text.slice(0, 3000);
-    } catch (e) {
-      continue;
-    }
-  }
-  return null;
-}
-
-// ── GENERATE (BUTTON CLICK) ──
-async function generate(index) {
-  const article = articles[index];
-  if (!article) { showErr('Article data missing.'); return; }
-
-  current = article;
-
-  const btn = document.getElementById(`gb${index}`);
-  let oldHtml = '';
-  if (btn) {
-    oldHtml = btn.innerHTML;
-    btn.disabled = true;
-    btn.classList.add('loading');
-    const label = btn.querySelector('.gb-label');
-    if (label) label.textContent = 'Generating with Gemini...';
-  }
-
-  hideErr();
-
-  try {
-    lastResult = await callGemini(article, style);
-    fillModal(article, lastResult);
-    if (typeof openModal === 'function') {
-      openModal();
-    } else {
-      const modal = document.getElementById('modal') || document.getElementById('resultModal');
-      if (modal) modal.classList.add('open');
-    }
-    toast('Viral prompt ready!');
-  } catch (e) {
-    showErr('Generation Failed: ' + e.message);
-    console.error('Gemini Generation Error:', e);
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.classList.remove('loading');
-      btn.innerHTML = oldHtml;
-    }
-  }
-}
-
-// ── CALL GEMINI ──
+// ── DYNAMIC NEWS-MATCHING GEMINI PROMPT GENERATOR ──
 async function callGemini(article, st) {
   if (!gm()) { showErr('Please enter your Gemini API key first.'); if (!panelOpen) togglePanel(); return; }
 
@@ -334,43 +253,39 @@ ${articleContext}
 You must design this specific social media asset using the following exact layout blueprint rules:
 ${imgStyle}
 
-━━━ YOUR EXTRACTION TASK ━━━
-Carefully read the headline and description above to isolate:
-- MAIN FRENCH POLITICIAN: The specific public figure named (e.g., Emmanuel Grégoire, Emmanuel Macron, Jean-Luc Mélenchon).
-- REAL CONFLICT DETAILS: Identify the specific metric or system failure (e.g., 78 animateurs suspendus, 23,000 dossiers, 31 suspicions de violences sexuelles, grève des syndicats).
-- LOCAL BACKDROP: The concrete geographic location or infrastructure in France linked to the crisis.
-
-━━━ STAGE-DIRECTION & IMAGE PROMPT GENERATION RULES ━━━
-You must write a highly detailed image generation prompt following these precise constraints:
-
-1. REAL POLITICIAN LIKENESS & POSTURE (INTELLIGENT FALLBACK):
-   Look at the input news data. You must explicitly name a real public figure and physically map their exact likeness for the image generator according to these conditions:
-   - If "Emmanuel Grégoire" is in the text: Describe him as "A distinguished French politician, slim build, early 50s, short thinning receding grey-brown hair, wearing subtle glasses, sharp analytical eyes, looking intensely slightly off-camera to the right with a contemplative hand-on-chin posture, wearing an official French tricolor mayoral/deputy sash (blue, white, red) over a dark tailored suit jacket."
-   - If "Emmanuel Macron" is in the text: Describe him as "The real-world French President Emmanuel Macron. A slim man in his late 40s, short brown hair neatly combed back, clean-shaven, sharp facial features, wearing a dark navy bespoke tailored suit with a white shirt and slim tie, looking intensely forward with a furrowed brow."
-   - If "Jean-Luc Mélenchon" is in the text: Describe him as "An older heavy-set French man, late 60s, thick grey-white hair, glasses, wearing a dark coat, hand on chin in deep contemplation."
-   - If NO specific French politician is named in the news text, dynamically evaluate the theme and force one of these two real public figures:
+━━━ YOUR EXTRACTION & IDENTIFICATION TASK ━━━
+Carefully read the headline and description above to isolate the actual subjects:
+1. IDENTIFY THE ACTUAL PEOPLE INSIDE THIS NEWS:
+   - Who is this story actually about? (e.g., if it mentions François Villeroy de Galhau, Édouard Philippe, Sabrina Roubache, Emmanuel Grégoire, or a judge, they are the main subjects).
+   - If multiple distinct people are named in the news conflict, you MUST include both of them standing together in the prompt scene layout.
+   - YOU MUST NEVER DEFAULT TO EMMANUEL MACRON OR GABRIEL ATTAL UNLESS THEY ARE EXPLICITLY NAMED IN THE INPUT DATA ABOVE.
+   
+2. INTELLIGENT FALLBACK (ONLY IF NO PEOPLE ARE NAMED IN THE TEXT):
+   - Only if NO specific French person/politician can be found in the article text, dynamically evaluate the theme and force one of these two public figures:
      • For International Affairs, Global Reports, Diplomacy, or Macro-Economics: Force Emmanuel Macron. Describe him as: "The real-world French President Emmanuel Macron. A slim man in his late 40s, short brown hair neatly combed back, clean-shaven, sharp facial features, wearing a dark navy bespoke tailored suit with a white shirt and slim tie, looking intensely forward with a furrowed brow, a look of deep concern."
      • For Security, Justice, Immigration, Domestic Scandals, or Social Crises: Force Gabriel Attal. Describe him as: "The real-world French politician Gabriel Attal. A slim 37-year-old man, sharp youthful facial features, short styled dark brown hair, completely clean-shaven, intense deep-set eyes, wearing a crisp modern dark navy tailored suit with a white shirt, standing in a posture of deep concern and contemplation."
+   - If a group archetype fits best (e.g., strike/protest), use the relevant general group profile like "a senior French corporate executive", "a French union worker", or "local citizens" with detailed emotional traits.
 
-2. DETAILED REALISTIC BACKGROUND ENVIRONMENT: Never use abstract rooms or simple walls. Describe a specific, gritty real-world environment tied directly to the structural issue in the news:
-   - Schools / Extra-curricular / Public Services: "In the background, a dimly lit Paris public municipal school corridor, institutional walls with weathered plaster and slightly peeled beige paint, bulletin boards with overlapping messy flyers, a localized French text sign reading 'ÉCOLE MUNICIPALE', cluttered child lockers, cold industrial lighting."
-   - Strikes / Demonstrations / Manifestations: "In the background, crowded urban French streets, protest banners with bold hand-painted lettering, smoke flares filtering hazy sunlight, police barriers, angry trade union workers wearing high-visibility vests."
-   - Urban Crisis / Crime / Housing: "In the background, a crowded French HLM public housing project with rundown concrete facades, laundry hanging from balconies, broken cobblestone pavement, and grey overcast skies conveying a sense of structural neglect."
+3. REALISTIC CONFLICT BACKGROUND ENVIRONMENT:
+   Never use abstract rooms. Map out a specific background tied directly to the structural issue in the news:
+   - Schools / Extra-curricular / Public Services: "A dimly lit Paris public municipal school corridor, institutional walls with weathered plaster, bulletin boards with overlapping messy flyers, a localized French text sign reading 'ÉCOLE MUNICIPALE'."
+   - Strikes / Demonstrations / Manifestations: "Crowded urban French streets, protest banners with bold hand-painted lettering, smoke flares filtering hazy sunlight, police barriers, angry trade union workers wearing high-visibility vests."
+   - Urban Crisis / Finance / Corporate / Housing: "A crowded French HLM public housing project with rundown concrete facades, or crisp high-contrast modern skyscraper office structures matching the corporate background."
 
-3. EXPLICIT FRENCH EMBLEMS: Explicitly instruct the generator to include a crisp French national flag (tricolor drape) somewhere clear in the background architectural scenery.
-
-4. ADAPTIVE TEXT OVERLAY PROTECTION ZONE:
-   - If the active style block above requires a "Poll", append: "the lower 45% of the frame smoothly fades to a completely solid, uniform near-black (#0a0a0a) gradient field that is entirely clear of details, objects, or scenery, reserved exclusively for graphic text banners and poll overlay templates."
+4. EXPLICIT FRENCH EMBLEMS & ADAPTIVE PROTECTION ZONES:
+   - Always include a crisp French national flag (tricolor drape) somewhere clear in the background architectural scenery.
+   - If the active style block above requires a "Poll", append text protection zone instructions: "the lower 45% of the frame smoothly fades to a completely solid, uniform near-black (#0a0a0a) gradient field that is entirely clear of details, objects, or scenery, reserved exclusively for graphic text banners and poll overlay templates."
    - If NOT a poll style, append: "the lower 30% of the frame smoothly transitions to a clean, solid dark near-black (#0a0a0a) gradient field completely free of background details to act as a clear canvas for a standalone headline overlay text."
 
-5. CAMERA TECH SPECS: Conclude with: "photojournalism style, cinematic side rim lighting, sharp focus on subject foreground, volumetric air particles, high-contrast desaturated color grading, shot on Canon EOS R5, 35mm lens, f/2.8, 8k resolution, hyper-realistic --ar 4:5 --style raw".
+━━━ CAMERA TECH SPECS ━━━
+Conclude the prompt description with: "photojournalism style, cinematic side rim lighting, sharp focus on subject foreground, volumetric air particles, high-contrast desaturated color grading, shot on Canon EOS R5, 35mm lens, f/2.8, 8k resolution, hyper-realistic --ar 4:5 --style raw".
 
 ━━━ STRUCTURED OUTPUT FORMAT ━━━
 Respond with ONLY these fields in order. No markdown headings or bold symbols.
 CRITICAL: If the active style has no poll, fill POLL_QUESTION, NON_LABEL, OUI_LABEL with: NONE
 
 IMAGE_PROMPT:
-[Dense 5-7 sentence English generation prompt.]
+[Dense 5-7 sentence English generation prompt mapping the exact real names and descriptors identified.]
 
 TITRE:
 [Main provocative French headline. ALL CAPS. Max 10 words.]
@@ -394,8 +309,7 @@ FACEBOOK_CAPTION:
 [Complete French social media caption: urgent headline hook with politician name, 2 sentences of event details, provocative question, '👉 Donnez votre avis...' CTA with hashtags.]
 
 IMAGE_NEGATIVE:
-[Exclusion parameters: english text on walls, cartoon style, duplicate heads, happy smiling faces, bright cheer colors.]
-`.trim();
+[Exclusion parameters: english text on walls, cartoon style, duplicate heads, happy smiling faces, bright cheer colors.]`;
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gm()}`,
@@ -425,6 +339,7 @@ IMAGE_NEGATIVE:
 
   return parse(rawText);
 }
+
 
 // ── TAB SWITCHER ──
 function switchTab(tabIndex) {
