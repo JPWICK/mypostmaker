@@ -404,7 +404,7 @@ IMAGE_NEGATIVE:
 [Exclusion parameters: english text on walls, cartoon style, duplicate heads, happy smiling faces, bright cheer colors.]`;
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gm()}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${gm()}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
