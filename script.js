@@ -311,6 +311,7 @@ FACEBOOK_CAPTION:
 IMAGE_NEGATIVE:
 [Exclusion parameters: english text on walls, cartoon style, duplicate heads, happy smiling faces, bright cheer colors.]`;
 
+    // Change the URL string to target the matching 2.5-flash engine:
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gm()}`,
     {
@@ -327,6 +328,7 @@ IMAGE_NEGATIVE:
       })
     }
   );
+
 
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
