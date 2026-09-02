@@ -5,6 +5,9 @@ let current = null;
 let lastResult = null;
 let panelOpen = true;
 
+// ── CLOUDFLARE WORKER ──
+const WORKER = 'https://old-wind-3c9b.nadeeranipun213.workers.dev';
+
 // ── KEYS ──
 function saveKeys() {
   const gmInput = document.getElementById('geminiKey').value.trim();
@@ -49,7 +52,7 @@ function setStyle(card, s) {
   style = s;
 }
 
-// ── FETCH NEWS (BFMTV Direct RSS) ──
+// ── FETCH NEWS (BFMTV via Cloudflare Worker) ──
 async function fetchNews() {
   const btn = document.getElementById('fetchBtn');
   btn.disabled = true; btn.classList.add('loading');
@@ -64,22 +67,30 @@ async function fetchNews() {
       sports:        'https://www.bfmtv.com/rss/sport/'
     };
 
-    const rssUrl = catRSSMap[cat] || catRSSMap['general'];
-    const proxyUrl = `https://old-wind-3c9b.nadeeranipun213.workers.dev/?url=${encodeURIComponent(rssUrl)}`;
-
+    const rssUrl   = catRSSMap[cat] || catRSSMap['general'];
+    const proxyUrl = `${WORKER}/?url=${encodeURIComponent(rssUrl)}`;
 
     console.log(`Fetching BFMTV RSS [${cat}]...`);
-    const res = await fetch(proxyUrl);
+    const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
+
     if (!res.ok) throw new Error(`RSS fetch error: ${res.status}`);
 
     const xmlText = await res.text();
     console.log('Raw XML preview:', xmlText.substring(0, 300));
 
-    const parser = new DOMParser();
-    const xml = parser.parseFromString(xmlText, 'application/xml');
+    // Check if we got HTML instead of XML (site blocking)
+    if (xmlText.trim().startsWith('<!DOCTYPE') || xmlText.trim().startsWith('<html')) {
+      throw new Error('BFMTV returned HTML — site may be blocking the worker. Try updating the worker code.');
+    }
 
+    // Try parsing as XML
+    const parser = new DOMParser();
+    let xml = parser.parseFromString(xmlText, 'application/xml');
     if (xml.querySelector('parsererror')) {
-      throw new Error('XML parse failed — BFMTV feed may have changed.');
+      xml = parser.parseFromString(xmlText, 'text/xml');
+      if (xml.querySelector('parsererror')) {
+        throw new Error('XML parse failed — BFMTV feed may have changed.');
+      }
     }
 
     const items = Array.from(xml.getElementsByTagName('item'));
@@ -181,7 +192,7 @@ function renderNews(arts) {
   c.appendChild(g);
 }
 
-// ── DYNAMIC STYLE FRAMEWORKS (PURE LAYOUT BLUEPRINTS - NO HARDCODED NAMES) ──
+// ── STYLE INSTRUCTIONS ──
 const styleInstructions = {
   poll: `
 COMPOSITION — "POLL DEBATE" STYLE (your main viral style):
@@ -218,45 +229,35 @@ COMPOSITION — "POLITICAL PORTRAIT" STYLE:
 - Dramatic side rim lighting, dark moody background`
 };
 
-// ── FETCH FULL ARTICLE ──
+// ── FETCH FULL ARTICLE via Cloudflare Worker ──
 async function fetchFullArticle(url) {
   if (!url) return null;
-
-  const proxies = [
-    `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-    `https://corsproxy.io/?${encodeURIComponent(url)}`
-  ];
-
-  for (const proxyUrl of proxies) {
-    try {
-      const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(6000) });
-      if (!res.ok) continue;
-
-      const data = await res.json();
-      const html = data.contents || data;
-      if (typeof html !== 'string') continue;
-
-      const text = html
-        .replace(/<script[\s\S]*?<\/script>/gi, '')
-        .replace(/<style[\s\S]*?<\/style>/gi, '')
-        .replace(/<nav[\s\S]*?<\/nav>/gi, '')
-        .replace(/<header[\s\S]*?<\/header>/gi, '')
-        .replace(/<footer[\s\S]*?<\/footer>/gi, '')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/\s{3,}/g, '\n')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .trim();
-
-      if (text.length > 200) return text.slice(0, 3000);
-    } catch (e) {
-      continue;
-    }
+  try {
+    const res = await fetch(
+      `${WORKER}/?url=${encodeURIComponent(url)}`,
+      { signal: AbortSignal.timeout(8000) }
+    );
+    if (!res.ok) return null;
+    const html = await res.text();
+    if (!html || html.length < 200) return null;
+    const text = html
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<nav[\s\S]*?<\/nav>/gi, '')
+      .replace(/<header[\s\S]*?<\/header>/gi, '')
+      .replace(/<footer[\s\S]*?<\/footer>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s{3,}/g, '\n')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .trim();
+    return text.length > 200 ? text.slice(0, 3000) : null;
+  } catch (e) {
+    return null;
   }
-  return null;
 }
 
 // ── GENERATE (BUTTON CLICK) ──
@@ -300,8 +301,7 @@ async function generate(index) {
   }
 }
 
-// ── DYNAMIC NEWS-MATCHING GEMINI PROMPT GENERATOR ──
-// ── DYNAMIC NEWS-MATCHING GEMINI PROMPT GENERATOR ──
+// ── CALL GEMINI ──
 async function callGemini(article, st) {
   if (!gm()) { showErr('Please enter your Gemini API key first.'); if (!panelOpen) togglePanel(); return; }
 
@@ -344,50 +344,47 @@ ${imgStyle}
 Carefully analyze the headline, category tab, and text description above to build a perfectly accurate prompt:
 
 1. THEMATIC CATEGORY ENFORCEMENT (CRITICAL):
-   - Look at the CATEGORY_TAB value. If it is "entertainment" or "sports", YOU MUST NEVER FORCE A FRENCH POLITICIAN (like Macron, Attal, or Grégoire) into the scene. 
+   - Look at the CATEGORY_TAB value. If it is "entertainment" or "sports", YOU MUST NEVER FORCE A FRENCH POLITICIAN (like Macron, Attal, or Grégoire) into the scene.
    - For Entertainment/Culture: Keep the prompt focused purely on pop culture, Hollywood, cinema, international actors, actresses, directors, or TV sets mentioned in the news text.
    - For Sports: Keep the prompt focused purely on athletes, stadiums, matches, pitches, jerseys, or sporting events mentioned.
 
 2. IDENTIFY THE EXACT PEOPLE IN THE NEWS:
-   - Who is this story explicitly about? Isolate their exact names from the text (e.g., Ellen Pompeo, Shonda Rhimes, an international actress, an executive, an athlete).
-   - In your final prompt output, you must explicitly write their exact names and generate highly precise physical descriptions of them (describe their real-world gender, approximate age, hairstyle, expression, and context-appropriate clothing like medical scrubs, a Hollywood suit, or a sports jersey).
-   - If multiple distinct people are named in the news conflict, include both of them standing together or interacting in the layout scene.
+   - Who is this story explicitly about? Isolate their exact names from the text.
+   - In your final prompt output, explicitly write their exact names and generate highly precise physical descriptions.
+   - If multiple distinct people are named, include both of them in the layout scene.
 
 3. INTELLIGENT FALLBACKS (ONLY FOR POLITICS/BUSINESS/GENERAL IF NO NAMES EXIST):
    - Only if the CATEGORY_TAB is "politics", "business", or "general", AND absolutely no specific individual name can be found in the text, you may fall back to:
      • Macro-Economics/International/Diplomacy: Force Emmanuel Macron. Describe him accurately.
      • Domestic Scandals/Security/Justice/Social Crises: Force Gabriel Attal. Describe him accurately.
-   - Otherwise, always default to a realistic general archetype matching the topic exactly (e.g., "a senior French corporate executive in a glass skyscraper", "a tired French worker", or "local citizens at a public rally").
+   - Otherwise, always default to a realistic general archetype matching the topic exactly.
 
 4. REALISTIC SCENE ENVIRONMENT:
-   Never use abstract backgrounds. Match the physical setting to the news text details:
-   - For Entertainment/TV News: Describe a highly polished, high-tech Hollywood studio backlot, a bustling modern television set with cameras and lighting rigs, or an iconic scene layout mimicking the show mentioned.
-   - For Public Service Crises: A realistic French public school corridor or weathered institutional office building.
-   - For Social/Strike Crises: Crowded urban French streets, protest banners with bold hand-painted lettering, or police barriers.
+   Never use abstract backgrounds. Match the physical setting to the news text details.
 
 5. ADAPTIVE PROTECTION ZONES & FLAG EMBLEMS:
-   - If the CATEGORY_TAB is related to French national news or politics, include a crisp French flag in the architecture. If it is international entertainment or Hollywood, use relevant setting details instead.
+   - If the CATEGORY_TAB is related to French national news or politics, include a crisp French flag in the architecture.
    - If the active style block above requires a "Poll", append: "the lower 45% of the frame smoothly fades to a completely solid, uniform near-black (#0a0a0a) gradient field that is entirely clear of details, reserved exclusively for graphic text banners."
    - If NOT a poll style, append: "the lower 30% of the frame smoothly transitions to a clean, solid dark near-black (#0a0a0a) gradient field to act as a clear canvas for headline text overlays."
 
 ━━━ CAMERA TECH SPECS ━━━
-Conclude the prompt description with: "photojournalism style, cinematic side rim lighting, sharp focus on subject foreground, volumetric air particles, high-contrast desaturated color grading, shot on Canon EOS R5, 35mm lens, f/2.8, 8k resolution, hyper-realistic --ar 4:5 --style raw".
+Conclude with: "photojournalism style, cinematic side rim lighting, sharp focus on subject foreground, volumetric air particles, high-contrast desaturated color grading, shot on Canon EOS R5, 35mm lens, f/2.8, 8k resolution, hyper-realistic --ar 4:5 --style raw".
 
 ━━━ STRUCTURED OUTPUT FORMAT ━━━
 Respond with ONLY these fields in order. No markdown headings or bold symbols.
 CRITICAL: If the active style has no poll, fill POLL_QUESTION, NON_LABEL, OUI_LABEL with: NONE
 
 IMAGE_PROMPT:
-[Dense 5-7 sentence English generation prompt mapping the exact real names and visual descriptors identified.]
+[Dense 5-7 sentence English generation prompt]
 
 TITRE:
-[Main provocative French headline reflecting the true topic. ALL CAPS. Max 10 words.]
+[Main provocative French headline. ALL CAPS. Max 10 words.]
 
 HIGHLIGHT_PHRASE:
 [The 2-4 most shocking words from TITRE.]
 
 SOUS_TITRE:
-[One specific metric, name, or statistic in French. Max 10 words. If none: NONE]
+[One specific metric or statistic in French. Max 10 words. If none: NONE]
 
 POLL_QUESTION:
 [Binary poll debate question in French. ALL CAPS. Ends with ' ?'. Max 12 words. If no poll: NONE]
@@ -399,7 +396,7 @@ OUI_LABEL:
 [What OUI❤️ stands for. 3-5 French words. If no poll: NONE]
 
 FACEBOOK_CAPTION:
-[Complete French social media caption matching the accurate topic context, a provocative question, '👉 Donnez votre avis...' CTA with hashtags.]
+[Complete French social media caption, provocative question, '👉 Donnez votre avis...' CTA with hashtags.]
 
 IMAGE_NEGATIVE:
 [Exclusion parameters: english text on walls, cartoon style, duplicate heads, happy smiling faces, bright cheer colors.]`;
@@ -456,9 +453,8 @@ function bgClose(event) {
   if (event.target.id === 'modalOverlay') closeModal();
 }
 
-// ── PARSER WITH MARKDOWN SANITIZATION ──
+// ── PARSER ──
 function parse(text) {
-  // Strip away rogue markdown wrappers if the AI falls back into code-block habits
   let cleanText = text.replace(/```[a-zA-Z]*/g, '').replace(/```/g, '').trim();
   console.log('CLEANED GEMINI OUTPUT:\n', cleanText);
 
@@ -471,15 +467,15 @@ function parse(text) {
     return match ? match[1].trim() : '';
   }
 
-  let imagePrompt     = getField('IMAGE_PROMPT');
-  const titre         = getField('TITRE');
+  let imagePrompt       = getField('IMAGE_PROMPT');
+  const titre           = getField('TITRE');
   const highlightPhrase = getField('HIGHLIGHT_PHRASE');
-  const sousTitre     = getField('SOUS_TITRE');
-  const pollQuestion  = getField('POLL_QUESTION');
-  const nonLabel      = getField('NON_LABEL');
-  const ouiLabel      = getField('OUI_LABEL');
-  const caption       = getField('FACEBOOK_CAPTION');
-  const negative      = getField('IMAGE_NEGATIVE');
+  const sousTitre       = getField('SOUS_TITRE');
+  const pollQuestion    = getField('POLL_QUESTION');
+  const nonLabel        = getField('NON_LABEL');
+  const ouiLabel        = getField('OUI_LABEL');
+  const caption         = getField('FACEBOOK_CAPTION');
+  const negative        = getField('IMAGE_NEGATIVE');
 
   if (!imagePrompt && cleanText.toUpperCase().includes('IMAGE_PROMPT')) {
     const fallbackParts = cleanText.split(/IMAGE_PROMPT\s*:/i);
@@ -530,8 +526,8 @@ ${ouiLabel || 'OUI'}
 // ── FILL MODAL ──
 function fillModal(article, r) {
   document.getElementById('modalRef').textContent = article.title;
-  document.getElementById('pImage').textContent = r.imagePrompt;
-  document.getElementById('pText').textContent = r.frText;
+  document.getElementById('pImage').textContent   = r.imagePrompt;
+  document.getElementById('pText').textContent    = r.frText;
 
   let qHtml = r.pollQuestion || r.titre || '';
   if (r.highlightPhrase && qHtml) {
