@@ -65,7 +65,8 @@ async function fetchNews() {
     };
 
     const rssUrl = catRSSMap[cat] || catRSSMap['general'];
-    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(rssUrl)}`;
+    const proxyUrl = `https://old-wind-3c9b.nadeeranipun213.workers.dev/?url=${encodeURIComponent(rssUrl)}`;
+
 
     console.log(`Fetching BFMTV RSS [${cat}]...`);
     const res = await fetch(proxyUrl);
