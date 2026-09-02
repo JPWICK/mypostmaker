@@ -352,6 +352,7 @@ Carefully analyze the headline, category tab, and text description above to buil
    - Who is this story explicitly about? Isolate their exact names from the text.
    - In your final prompt output, explicitly write their exact names and generate highly precise physical descriptions.
    - If multiple distinct people are named, include both of them in the layout scene.
+   - Then write "Image was uploaded" after the name of person.
 
 3. INTELLIGENT FALLBACKS (ONLY FOR POLITICS/BUSINESS/GENERAL IF NO NAMES EXIST):
    - Only if the CATEGORY_TAB is "politics", "business", or "general", AND absolutely no specific individual name can be found in the text, you may fall back to:
@@ -368,7 +369,7 @@ Carefully analyze the headline, category tab, and text description above to buil
    - If NOT a poll style, append: "the lower 30% of the frame smoothly transitions to a clean, solid dark near-black (#0a0a0a) gradient field to act as a clear canvas for headline text overlays."
 
 ━━━ CAMERA TECH SPECS ━━━
-Conclude with: "photojournalism style, cinematic side rim lighting, sharp focus on subject foreground, volumetric air particles, high-contrast desaturated color grading, shot on Canon EOS R5, 35mm lens, f/2.8, 8k resolution, hyper-realistic --ar 4:5 --style raw".
+Conclude with: "photojournalism style, cinematic side rim lighting, sharp focus on subject foreground, volumetric air particles, high-contrast desaturated color grading, shot on Canon EOS R5, 35mm lens, f/2.8, 8k resolution, hyper-realistic --ar 3:4 --style raw".
 
 ━━━ STRUCTURED OUTPUT FORMAT ━━━
 Respond with ONLY these fields in order. No markdown headings or bold symbols.
